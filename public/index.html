@@ -44,6 +44,7 @@
       <label>Scoring <select id="scoring"></select></label>
     </div>
     <p id="scoring-blurb" class="muted"></p>
+    <label class="check"><input type="checkbox" id="entry" /> Need 500 in one turn to get on the board</label>
     <p id="spectators" class="muted"></p>
     <p id="lobby-hint" class="muted"></p>
     <div class="row">
@@ -105,7 +106,7 @@
       <li><b>Your turn:</b> roll all six dice. Tap the dice that score to keep them, then either <b>roll the rest</b> or <b>bank</b> your points.</li>
       <li><b>Farkle!</b> If a roll has no scoring dice, you lose everything you scored this turn.</li>
       <li><b>Hot dice:</b> score with all six dice and you get to roll all six again.</li>
-      <li><b>Getting on the board:</b> your first banked turn must total at least 500.</li>
+      <li id="rule-entry"><b>Getting on the board:</b> your first banked turn must total at least 500 (the host can turn this off).</li>
       <li>Every die you keep must score. The host picks the scoring rules in the lobby; this table shows the ones for your game.</li>
     </ol>
     <h3 id="rules-scoring-title"></h3>

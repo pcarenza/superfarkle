@@ -137,3 +137,6 @@ kbd { background: rgba(255,255,255,.12); border-radius: 4px; padding: 0 5px; fon
   #toolbar button { width: 36px; height: 36px; }
   #toast { font-size: 28px; }
 }
+
+label.check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; }
+label.check input { width: 18px; height: 18px; padding: 0; accent-color: var(--accent); }

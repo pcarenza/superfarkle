@@ -60,7 +60,7 @@ and publishes it as **superfarkle.apk** on the `android-latest` release.
   **roll the rest** or **bank** your turn total.
 - **Farkle:** a roll with no scoring dice loses everything from that turn.
 - **Hot dice:** score with all six and roll all six again.
-- Your first banked turn needs at least **500** to get on the board.
+- By default your first banked turn needs at least **500** to get on the board (the host can switch this off in the lobby).
 - First to the target (10,000 or 5,000, chosen by the host) triggers a final
   round: everyone else gets one more turn to beat them.
 

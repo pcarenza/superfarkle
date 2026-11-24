@@ -170,3 +170,21 @@ test('hybrid is the default and games remember their scoring mode', () => {
   applyRoll(g, seq(1, 1, 1, 2, 3, 4));
   assert.equal(checkKeep(g, [0, 1, 2], false).score, 300);
 });
+
+test('entry minimum can be turned off', () => {
+  const g = newGameState([0, 1], { entry: 0 });
+  applyRoll(g, seq(1, 2, 3, 3, 4, 6));
+  assert.equal(checkKeep(g, [0], true).score, 100);
+  applyKeep(g, [0], true, seq(1));
+  assert.equal(g.scores[0], 100);
+  assert.equal(g.onBoard[0], true);
+  // bots bank freely too, so a whole game still finishes
+  const bots = newGameState([0, 1], { target: 1000, entry: 0 });
+  const rng = () => 1 + Math.floor(Math.random() * 6);
+  for (let i = 0; i < 5000 && bots.phase !== 'over'; i++) {
+    if (bots.phase === 'roll') applyRoll(bots, rng);
+    else if (bots.phase === 'farkle') applyPass(bots);
+    else { const { keep, bank } = chooseBotAction(bots); applyKeep(bots, keep, bank, rng); }
+  }
+  assert.equal(bots.phase, 'over');
+});

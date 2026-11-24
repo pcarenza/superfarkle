@@ -1,5 +1,5 @@
 import { DiceView } from './scene.js';
-import { SEAT_COLORS, TARGETS, SCORING, SCORING_MODES, DEFAULT_SCORING } from '/shared/config.js';
+import { SEAT_COLORS, ENTRY_SCORE, TARGETS, SCORING, SCORING_MODES, DEFAULT_SCORING } from '/shared/config.js';
 import { scoreDice, usableDice } from '/shared/rules.js';
 import { sfx } from './sfx.js';
 
@@ -159,6 +159,7 @@ $('gameover-close').onclick = () => { gameoverDismissed = true; $('gameover').hi
 for (const t of TARGETS) $('target').add(new Option(t.toLocaleString(), t));
 $('target').onchange = () => emit('setOptions', { target: Number($('target').value) }, $('lobby-error'));
 for (const m of SCORING_MODES) $('scoring').add(new Option(SCORING[m].name, m));
+$('entry').onchange = () => emit('setOptions', { entry: $('entry').checked ? ENTRY_SCORE : 0 }, $('lobby-error'));
 $('scoring').onchange = () => emit('setOptions', { scoring: $('scoring').value }, $('lobby-error'));
 
 // The rules dialog shows the scoring table for the current game (or the default).
@@ -208,7 +209,8 @@ function renderLobby() {
   });
   $('target').value = room.options.target;
   $('scoring').value = room.options.scoring;
-  $('target').disabled = $('scoring').disabled = !you.isHost;
+  $('entry').checked = room.options.entry > 0;
+  $('target').disabled = $('scoring').disabled = $('entry').disabled = !you.isHost;
   $('scoring-blurb').textContent = SCORING[room.options.scoring].blurb;
   $('spectators').textContent = room.spectators.length ? `Watching: ${room.spectators.join(', ')}` : '';
   const seated = room.seats.filter(Boolean).length;
@@ -245,7 +247,7 @@ function renderPlayers(g) {
       + (top > 0 && g.scores[s] === top ? ' leader' : '');
     div.innerHTML = `<span class="dot" style="--c:${SEAT_COLORS[s].hex}"></span><span class="name"></span><span class="score">${fmt(g.scores[s])}</span>`;
     div.querySelector('.name').textContent = (isMine(s) ? '★ ' : '') + (seat?.name ?? '?') + (seat?.bot ? ' 🤖' : seat && !seat.connected ? ' (away)' : '');
-    if (!g.onBoard[s]) div.insertAdjacentHTML('beforeend', `<span class="off-board">needs ${g.entry}</span>`);
+    if (g.entry && !g.onBoard[s]) div.insertAdjacentHTML('beforeend', `<span class="off-board">needs ${g.entry}</span>`);
     el.append(div);
   }
 }
@@ -273,7 +275,7 @@ function renderControls() {
     if (mine) {
       const total = g.turnScore + score;
       tally = `This turn <b>${fmt(g.turnScore)}</b>${score ? ` + <span class="ok">${fmt(score)}</span> selected = <b>${fmt(total)}</b>` : ''}`;
-      if (!g.onBoard[g.turn] && total < g.entry) tally += `<br>You need ${fmt(g.entry)} to get on the board`;
+      if (g.entry && !g.onBoard[g.turn] && total < g.entry) tally += `<br>You need ${fmt(g.entry)} to get on the board`;
     } else tally = `This turn <b>${fmt(g.turnScore)}</b>`;
   } else if (g.turnScore) tally = `This turn <b>${fmt(g.turnScore)}</b>`;
   $('tally').innerHTML = tally;
@@ -359,6 +361,7 @@ async function present(next) {
     view.set(blankSlots(), 0);
     view.setSelection(sel, null, false);
     renderRulesTable(next.options.scoring);
+    $('rule-entry').hidden = !next.options.entry;
     renderLobby();
     screen('lobby');
     return;
@@ -366,6 +369,7 @@ async function present(next) {
 
   screen('game');
   renderRulesTable(g.scoring);
+  $('rule-entry').hidden = !g.entry;
   pending = false;
   const newRoll = prev && g.rollId > prev.rollId;
   const turnChanged = !prev || prev.turn !== g.turn || prev.round !== g.round;
