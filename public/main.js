@@ -2,6 +2,7 @@ import { DiceView } from './scene.js';
 import { COLORS, ENTRY_SCORE, TARGETS, SCORING, SCORING_MODES, DEFAULT_SCORING, MODES, MODE_IDS } from '/shared/config.js';
 import { scoreDice, usableDice } from '/shared/rules.js';
 import { sfx } from './sfx.js';
+import { VoiceChat } from './voice.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -48,7 +49,7 @@ function screen(name) {
   $('toolbar').hidden = name === 'welcome';
   for (const b of document.querySelectorAll('#toolbar .game-only')) b.hidden = name !== 'game';
   inRoomScreen = name !== 'welcome';
-  if (name !== 'game') hideSizePop();
+  if (name !== 'game') hideGamePops(); // the voice panel stays open across screens
   keepAwake(name === 'game');
   layoutChat();
   fitTable();
@@ -106,6 +107,7 @@ function joined(code) {
 }
 
 function leave() {
+  voice.leave();
   wantRoom = false;
   socket.emit('leave');
   store.set('room', null);
@@ -194,6 +196,7 @@ function renderLobby() {
   ul.replaceChildren();
   room.seats.forEach((s, i) => {
     const li = document.createElement('li');
+    li.dataset.seat = i;
     li.innerHTML = `<span class="dot" style="--c:${s ? s.color.hex : '#555'}"></span><span class="who"></span>`;
     const who = li.querySelector('.who');
     if (s) {
@@ -228,6 +231,7 @@ function renderLobby() {
     ul.append(li);
   });
   renderSwatches();
+  applySpeaking();
   $('target').value = room.options.target;
   $('scoring').value = room.options.scoring;
   $('entry').checked = room.options.entry > 0;
@@ -299,6 +303,7 @@ function renderPlayers(g) {
   for (const s of g.order) {
     const seat = room.seats[s];
     const div = document.createElement('div');
+    div.dataset.seat = s;
     div.className = 'pl' + (g.turn === s && g.phase !== 'over' ? ' turn' : '') + (seat && !seat.connected ? ' off' : '')
       + (top > 0 && g.scores[s] === top ? ' leader' : '');
     div.innerHTML = `<span class="dot" style="--c:${hexOf(s)}"></span><span class="name"></span><span class="score">${fmt(g.scores[s])}</span>`;
@@ -306,6 +311,7 @@ function renderPlayers(g) {
     if (g.entry && !g.onBoard[s]) div.insertAdjacentHTML('beforeend', `<span class="off-board">needs ${g.entry}</span>`);
     el.append(div);
   }
+  applySpeaking();
 }
 
 function selScore(g) {
@@ -424,7 +430,8 @@ sizeInput.oninput = () => setSize(sizeInput.value);
 $('size-reset').onclick = () => setSize(100);
 $('btn-size').onclick = () => { const open = $('size-pop').hidden; hideSizePop(); $('size-pop').hidden = !open; };
 // The popovers belong to the game screen; only one is open at a time.
-function hideSizePop() { $('size-pop').hidden = true; $('tally-pop').hidden = true; }
+function hideGamePops() { $('size-pop').hidden = true; $('tally-pop').hidden = true; }
+function hideSizePop() { hideGamePops(); $('voice-pop').hidden = true; } // closes every popover
 
 // ----------------------------------------------------------- scoreboard --
 const initialOf = (seat) => ([...(room?.seats[seat]?.name ?? '').trim()][0] ?? '?').toUpperCase();
@@ -635,6 +642,64 @@ async function pump() {
     busy = false;
   }
 }
+
+// ----------------------------------------------------------------- voice --
+const voice = new VoiceChat(socket, () => renderVoice());
+if (new URLSearchParams(location.search).has('debug')) window.__voice = voice;
+
+function renderVoice() {
+  const inVoice = voice.joined;
+  const mine = voice.myId;
+  $('btn-voice').classList.toggle('on', inVoice && !voice.muted);
+  $('btn-voice').classList.toggle('muted', inVoice && voice.muted);
+  $('btn-voice').textContent = inVoice && voice.muted ? '🔇' : '🎤';
+  const speakingNow = inVoice && voice.members.some((m) => voice.speaking(m.id));
+  $('btn-voice').classList.toggle('speaking', speakingNow);
+
+  $('voice-join').hidden = inVoice;
+  $('voice-join').disabled = voice.connecting;
+  $('voice-join').textContent = voice.connecting ? 'Connecting…' : 'Join voice';
+  $('voice-mute').hidden = $('voice-leave').hidden = !inVoice;
+  $('voice-mute').textContent = voice.muted ? 'Unmute' : 'Mute';
+  $('voice-status').textContent = voice.error
+    || (inVoice ? (voice.muted ? 'You are muted.' : 'You are live — others can hear you.') : voice.members.length ? `${voice.members.length} in voice chat` : 'Nobody is in voice chat yet.');
+  $('voice-status').classList.toggle('error', !!voice.error);
+
+  const ul = $('voice-list');
+  ul.replaceChildren();
+  for (const m of voice.members) {
+    const li = document.createElement('li');
+    const you = m.id === mine;
+    if (voice.speaking(m.id)) li.className = 'speaking';
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.setProperty('--c', m.seat >= 0 ? hexOf(m.seat) : '#888');
+    const name = document.createElement('span');
+    name.className = 'vname';
+    name.textContent = you ? `${m.name || 'You'} (you)` : m.name;
+    li.append(dot, name);
+    if (m.muted) li.append(Object.assign(document.createElement('span'), { textContent: '🔇', title: 'Muted' }));
+    if (!you && inVoice) {
+      const st = voice.stateOf(m.id);
+      if (st && st !== 'connected') li.append(Object.assign(document.createElement('span'), { className: 'vstate', textContent: st === 'failed' ? "can't connect" : 'connecting…' }));
+      li.append(btn(voice.isLocalMuted(m.id) ? 'Unmute' : 'Mute for me', () => voice.setLocalMute(m.id, !voice.isLocalMuted(m.id))));
+    }
+    ul.append(li);
+  }
+  applySpeaking();
+}
+
+// Highlight who is talking in the scoreboard and the lobby seat list.
+function applySpeaking() {
+  const talking = new Set(voice.members.filter((m) => voice.speaking(m.id) && m.seat >= 0).map((m) => String(m.seat)));
+  for (const el of document.querySelectorAll('#players .pl, #seats li')) el.classList.toggle('speaking', talking.has(el.dataset.seat));
+}
+$('btn-voice').onclick = () => { const open = $('voice-pop').hidden; hideSizePop(); $('voice-pop').hidden = !open; renderVoice(); };
+$('voice-close').onclick = () => { $('voice-pop').hidden = true; };
+$('voice-join').onclick = () => { sfx.unlock(); voice.join(); };
+$('voice-leave').onclick = () => voice.leave();
+$('voice-mute').onclick = () => voice.setMuted(!voice.muted);
+socket.on('voice', ({ code }) => { if (!wantRoom) return; renderVoice(); });
 
 // ------------------------------------------------------------------ chat --
 // One feed holds chat messages, join/leave notices and game events.

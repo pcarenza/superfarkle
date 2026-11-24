@@ -192,3 +192,20 @@ table.tally.n6 .badge, table.tally.n5 .badge { width: 22px; height: 22px; font-s
 .dot.clickable { cursor: pointer; }
 
 a.link-small { color: var(--muted); font-size: 12px; text-align: center; }
+
+/* Voice chat */
+#voice-pop { background: rgba(12, 32, 22, 0.97); position: fixed; top: calc(60px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); z-index: 6;
+  padding: 10px 12px; width: min(340px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 8px; }
+#voice-pop header { display: flex; justify-content: space-between; align-items: center; color: var(--accent); }
+#voice-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 40vh; overflow: auto; }
+#voice-list li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; border: 1px solid transparent; }
+#voice-list li.speaking { border-color: #6ee79a; background: rgba(110,231,154,.12); }
+#voice-list .vname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#voice-list .vstate { font-size: 11px; color: var(--muted); }
+#btn-voice.on { box-shadow: 0 0 0 2px #6ee79a; }
+#btn-voice.muted { box-shadow: 0 0 0 2px var(--danger); }
+#btn-voice.speaking { animation: talk .9s ease-in-out infinite; }
+@keyframes talk { 50% { box-shadow: 0 0 14px 3px rgba(110,231,154,.8); } }
+.pl.speaking { box-shadow: 0 0 0 2px #6ee79a; }
+#seats li.speaking { box-shadow: 0 0 0 2px #6ee79a; }
+@media (max-width: 720px) { #voice-pop { top: calc(52px + env(safe-area-inset-top)); right: 8px; } }

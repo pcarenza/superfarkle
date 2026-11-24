@@ -12,6 +12,10 @@ a Node/socket.io server that owns the rules, a three.js client, and a
   Clients only animate the result, so everyone sees the same roll.
 - Pick your own color from 11 in the lobby (no two players can share one); your choice is remembered. The dice take the color of whoever is rolling, and White gives the classic ivory dice.
 - Chat with quick reactions in the lobby and during the game.
+- Optional **voice chat** (🎤 button): players opt in, the microphone stays off until
+  they tap Join, and audio goes peer-to-peer (WebRTC); the server only relays the
+  connection setup. Works in the lobby and in games, with mute, per-player mute and
+  a speaking indicator. See "Voice chat setup" below.
 
 ## Running it
 
@@ -89,3 +93,22 @@ Rule sets live in `shared/config.js` (`SCORING`); the engine is `shared/rules.js
 `store/` holds the Google Play artwork: the 512px icon, feature graphic, adaptive-icon
 layers and phone screenshots. The privacy policy page is `public/privacy.html`
 (served at `/privacy.html`).
+
+## Voice chat setup
+
+Voice works out of the box between most players using a free public STUN server.
+Players on strict networks (some mobile carriers, offices, schools) need a TURN
+relay to connect. Add one by setting the `ICE_SERVERS` environment variable on the
+server (in Render: your service → Environment) to a JSON list, for example:
+
+```
+ICE_SERVERS=[{"urls":"turn:turn.example.com:3478","username":"USER","credential":"SECRET"}]
+```
+
+Hosted TURN services (e.g. Metered, Twilio, Cloudflare Calls) offer free or cheap
+tiers. Up to 8 people can be in a room's voice chat at once (a full mesh: each
+device connects to every other, which is fine for audio).
+
+The Android app declares the `RECORD_AUDIO` permission and asks for it only when a
+player taps Join voice. The privacy policy (`public/privacy.html`) describes voice
+chat; update your Google Play Data safety answers to match.

@@ -19,6 +19,22 @@ const http = createServer(app);
 // The Android app loads the client from https://localhost and connects here.
 const io = new Server(http, { cors: { origin: ['https://localhost', 'http://localhost', 'capacitor://localhost'] } });
 
+// Voice chat connects players directly (WebRTC). STUN helps them find each other;
+// players behind strict networks also need a TURN relay. Provide one with
+//   ICE_SERVERS='[{"urls":"turn:turn.example.com:3478","username":"u","credential":"p"}]'
+// (it is added to the default STUN server).
+const DEFAULT_ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
+function iceServers() {
+  try {
+    const extra = JSON.parse(process.env.ICE_SERVERS || '[]');
+    return [...DEFAULT_ICE, ...(Array.isArray(extra) ? extra : [])];
+  } catch {
+    console.warn('ICE_SERVERS is not valid JSON; using STUN only');
+    return DEFAULT_ICE;
+  }
+}
+const MAX_VOICE = 8;
+
 /** @type {Map<string, Room>} */
 const rooms = new Map();
 const ROOM_IDLE_MS = 30 * 60 * 1000;
@@ -45,6 +61,7 @@ class Room {
     this.seats = Array(MAX_SEATS).fill(null); // {token, name, bot}
     this.host = null;
     this.game = null;
+    this.voice = new Map(); // voiceId -> {socketId, token, muted}
     this.options = { target: DEFAULT_TARGET, scoring: DEFAULT_SCORING, entry: ENTRY_SCORE, mode: DEFAULT_MODE };
     this.timer = null;
     this.chat = [];
@@ -70,6 +87,26 @@ class Room {
       hostName: this.players.get(this.host)?.name ?? null,
       game: this.game,
     };
+  }
+
+  // Who is in voice chat right now (public info only: no tokens or socket ids).
+  voiceMembers() {
+    return [...this.voice].map(([id, v]) => ({
+      id,
+      name: this.players.get(v.token)?.name ?? '?',
+      seat: this.seatOf(v.token),
+      muted: v.muted,
+    }));
+  }
+
+  broadcastVoice() {
+    io.to(this.code).emit('voice', { code: this.code, members: this.voiceMembers() });
+  }
+
+  dropVoice(socketId) {
+    let changed = false;
+    for (const [id, v] of this.voice) if (v.socketId === socketId) { this.voice.delete(id); changed = true; }
+    if (changed) this.broadcastVoice();
   }
 
   broadcast() {
@@ -189,6 +226,8 @@ io.on('connection', (socket) => {
     if (!r) return;
     room = null;
     socket.leave(r.code);
+    r.dropVoice(socket.id);
+    myVoiceId = null;
     const p = r.players.get(token);
     r.players.delete(token);
     const seat = r.seatOf(token);
@@ -362,11 +401,54 @@ io.on('connection', (socket) => {
     ok(ack);
   });
 
+  // ---------------------------------------------------------- voice chat --
+  // Audio flows directly between players; the server only introduces them and
+  // relays the connection setup messages.
+  let myVoiceId = null;
+  const signalTimes = [];
+  socket.on('voiceJoin', (_, ack) => {
+    if (!room) return fail(ack, 'Join a room first.');
+    if (myVoiceId && room.voice.has(myVoiceId)) room.voice.delete(myVoiceId);
+    if (room.voice.size >= MAX_VOICE) return fail(ack, 'Voice chat is full.');
+    const others = room.voiceMembers();
+    myVoiceId = randomBytes(6).toString('hex');
+    room.voice.set(myVoiceId, { socketId: socket.id, token, muted: false });
+    room.broadcastVoice();
+    ok(ack, { id: myVoiceId, ice: iceServers(), members: others });
+  });
+
+  socket.on('voiceLeave', (_, ack) => {
+    if (room) room.dropVoice(socket.id);
+    myVoiceId = null;
+    ok(ack);
+  });
+
+  socket.on('voiceMute', ({ muted } = {}) => {
+    const v = room?.voice.get(myVoiceId);
+    if (!v) return;
+    v.muted = !!muted;
+    room.broadcastVoice();
+  });
+
+  // Relay an offer / answer / ICE candidate to one other voice member.
+  socket.on('voiceSignal', ({ to, data } = {}) => {
+    if (!room || !myVoiceId || !room.voice.has(myVoiceId)) return;
+    const target = room.voice.get(String(to));
+    if (!target || typeof data !== 'object' || data === null) return;
+    if (JSON.stringify(data).length > 20000) return;
+    const now = Date.now();
+    while (signalTimes.length && now - signalTimes[0] > 10000) signalTimes.shift();
+    if (signalTimes.length >= 200) return;
+    signalTimes.push(now);
+    io.to(target.socketId).emit('voiceSignal', { from: myVoiceId, data });
+  });
+
   socket.on('leave', (_, ack) => { leave(); ok(ack); });
 
   socket.on('disconnect', () => {
     const r = room;
     if (!r) return;
+    r.dropVoice(socket.id);
     const p = r.players.get(token);
     if (p && p.socketId === socket.id) {
       p.connected = false;

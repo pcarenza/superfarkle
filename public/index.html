@@ -80,6 +80,7 @@
 
   <div id="toolbar" hidden>
     <button id="btn-chat" title="Chat">💬<span id="unread" hidden></span></button>
+    <button id="btn-voice" title="Voice chat">🎤</button>
     <button id="btn-tally" class="game-only" title="Scoreboard">📊</button>
     <button id="btn-size" class="game-only" title="Dice size">🎲</button>
     <button id="btn-sound" title="Sound on/off">🔊</button>
@@ -95,6 +96,18 @@
     <form id="chat-form"><input id="chat" maxlength="200" placeholder="Say something…" autocomplete="off" enterkeyhint="send" /><button class="small primary">Send</button></form>
   </aside>
   <div id="chat-peek" hidden></div>
+
+  <div id="voice-pop" class="card" hidden>
+    <header><span>Voice chat</span><button id="voice-close" class="small ghost" title="Close">✕</button></header>
+    <p id="voice-status" class="muted"></p>
+    <div class="row">
+      <button id="voice-join" class="primary">Join voice</button>
+      <button id="voice-mute" hidden>Mute</button>
+      <button id="voice-leave" class="ghost" hidden>Leave</button>
+    </div>
+    <ul id="voice-list"></ul>
+    <p class="muted">Talk with the other players. Your microphone stays off until you tap Join, and audio goes straight between players' devices. Headphones work best.</p>
+  </div>
 
   <div id="tally-pop" class="card" hidden>
     <header><span>Scoreboard</span><button id="tally-close" class="small ghost" title="Close">✕</button></header>
