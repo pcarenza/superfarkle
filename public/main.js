@@ -48,6 +48,7 @@ function screen(name) {
   $('toolbar').hidden = name === 'welcome';
   for (const b of document.querySelectorAll('#toolbar .game-only')) b.hidden = name !== 'game';
   inRoomScreen = name !== 'welcome';
+  if (name !== 'game') hideSizePop();
   keepAwake(name === 'game');
   layoutChat();
   fitTable();
@@ -345,6 +346,22 @@ window.addEventListener('keydown', (e) => {
 for (const b of document.querySelectorAll('[data-open]')) b.onclick = () => $(b.dataset.open).showModal();
 const soundIcon = () => ($('btn-sound').textContent = sfx.muted ? '🔇' : '🔊');
 soundIcon();
+// Dice size is a per-device preference, remembered between visits.
+const sizeInput = $('size');
+const setSize = (pct, save = true) => {
+  pct = Math.min(120, Math.max(50, Number(pct) || 100));
+  sizeInput.value = pct;
+  $('size-val').textContent = `${pct}%`;
+  view.setZoom(pct / 100);
+  if (save) store.set('diceSize', String(pct));
+};
+setSize(store.get('diceSize') || 100, false);
+sizeInput.oninput = () => setSize(sizeInput.value);
+$('size-reset').onclick = () => setSize(100);
+$('btn-size').onclick = () => { $('size-pop').hidden = !$('size-pop').hidden; };
+// The size popover belongs to the game screen.
+function hideSizePop() { $('size-pop').hidden = true; }
+
 $('btn-sound').onclick = () => { sfx.muted = !sfx.muted; soundIcon(); };
 
 // Show a game state, animating the dice when a new roll arrived.

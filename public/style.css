@@ -140,3 +140,9 @@ kbd { background: rgba(255,255,255,.12); border-radius: 4px; padding: 0 5px; fon
 
 label.check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; }
 label.check input { width: 18px; height: 18px; padding: 0; accent-color: var(--accent); }
+
+#size-pop { position: fixed; top: calc(60px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); z-index: 6;
+  padding: 10px 12px; display: flex; align-items: flex-end; gap: 10px; width: min(260px, calc(100vw - 24px)); }
+#size-pop label { flex: 1; }
+#size-pop input[type=range] { padding: 0; accent-color: var(--accent); }
+@media (max-width: 720px) { #size-pop { top: calc(52px + env(safe-area-inset-top)); right: 8px; } }

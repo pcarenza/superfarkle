@@ -92,6 +92,7 @@ export class DiceView {
 
     this.camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
     this.insets = { top: 0, bottom: 0 };
+    this.zoom = 1; // viewer's dice-size preference (1 = default)
 
     const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
     sun.position.set(-3, 9, 4);
@@ -144,6 +145,12 @@ export class DiceView {
     this.resize();
   }
 
+  /** Make the whole table (dice and spacing) larger or smaller, e.g. 0.8 or 1.1. */
+  setZoom(z) {
+    this.zoom = z;
+    this.resize();
+  }
+
   resize() {
     const w = this.container.clientWidth || window.innerWidth;
     const h = this.container.clientHeight || window.innerHeight;
@@ -157,7 +164,7 @@ export class DiceView {
     const halfW = 3.7, halfD = 3.6;
     const distW = halfW / (tanV * aspect);
     const distH = (halfD * 0.78) / (tanV * (effH / h));
-    const dist = Math.max(distW, distH);
+    const dist = Math.max(distW, distH) / this.zoom;
     const dir = new THREE.Vector3(0, 1, 0.5).normalize();
     const look = new THREE.Vector3(0, 0, 0.55);
     this.camera.position.copy(look).addScaledVector(dir, dist);

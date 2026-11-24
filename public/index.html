@@ -71,6 +71,7 @@
 
   <div id="toolbar" hidden>
     <button id="btn-chat" title="Chat">💬<span id="unread" hidden></span></button>
+    <button id="btn-size" class="game-only" title="Dice size">🎲</button>
     <button id="btn-sound" title="Sound on/off">🔊</button>
     <button data-open="rules" title="Rules">?</button>
     <button id="btn-quit" class="game-only" title="Leave game">✕</button>
@@ -84,6 +85,13 @@
     <form id="chat-form"><input id="chat" maxlength="200" placeholder="Say something…" autocomplete="off" enterkeyhint="send" /><button class="small primary">Send</button></form>
   </aside>
   <div id="chat-peek" hidden></div>
+
+  <div id="size-pop" class="card" hidden>
+    <label>Dice size <span id="size-val"></span>
+      <input type="range" id="size" min="50" max="120" step="5" />
+    </label>
+    <button id="size-reset" class="small ghost">Reset</button>
+  </div>
 
   <div id="toast"></div>
 
