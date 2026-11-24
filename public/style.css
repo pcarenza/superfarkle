@@ -209,3 +209,8 @@ a.link-small { color: var(--muted); font-size: 12px; text-align: center; }
 .pl.speaking { box-shadow: 0 0 0 2px #6ee79a; }
 #seats li.speaking { box-shadow: 0 0 0 2px #6ee79a; }
 @media (max-width: 720px) { #voice-pop { top: calc(52px + env(safe-area-inset-top)); right: 8px; } }
+
+#get-app { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+a.app-link { display: block; width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 10px; text-align: center; text-decoration: none;
+  color: var(--text); background: rgba(255,255,255,.08); border: 1px solid var(--card-edge); }
+a.app-link:hover { background: rgba(255,255,255,.15); }

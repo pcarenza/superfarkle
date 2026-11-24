@@ -27,6 +27,8 @@ const socket = SERVER ? io(SERVER, socketOpts) : io(socketOpts);
 const native = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins : null;
 const buzz = (style = 'MEDIUM') => { try { native?.Haptics?.impact({ style }); } catch {} };
 const keepAwake = (on) => { try { on ? native?.KeepAwake?.keepAwake() : native?.KeepAwake?.allowSleep(); } catch {} };
+// Offer the APK download to Android phones using the website (not inside the app itself).
+$('get-app').hidden = !(/Android/i.test(navigator.userAgent) && !native);
 if (new URLSearchParams(location.search).has('debug')) Object.assign(window, { __view: view, __socket: socket }); // for automated tests
 socket.on('token', (t) => store.set('token', t));
 
