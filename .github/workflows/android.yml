@@ -60,19 +60,27 @@ jobs:
           echo "ANDROID_KEYSTORE_FILE=$KS" >> "$GITHUB_ENV"
           echo "ANDROID_KEYSTORE_PASSWORD=$PASS" >> "$GITHUB_ENV"
 
-      - name: Build the signed APK
+      - name: Build the signed APK and app bundle
         working-directory: android
         env:
           VERSION_CODE: ${{ github.run_number }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease bundleRelease --no-daemon --stacktrace
           cp app/build/outputs/apk/release/app-release.apk ../superfarkle.apk
+          cp app/build/outputs/bundle/release/app-release.aab ../superfarkle.aab
 
       - uses: actions/upload-artifact@v4
         with:
           name: superfarkle-apk
           path: superfarkle.apk
+
+      # The .aab is what Google Play Console asks for. Upload it only when the
+      # build was signed with your real keystore (see the README).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: superfarkle-aab
+          path: superfarkle.aab
 
       - name: Publish to the "android-latest" release
         uses: softprops/action-gh-release@v2
@@ -80,10 +88,15 @@ jobs:
           tag_name: android-latest
           name: Android app (latest build)
           make_latest: true
-          files: superfarkle.apk
+          files: |
+            superfarkle.apk
+            superfarkle.aab
           body: |
             Latest Android build of Super Farkle (build ${{ github.run_number }}, commit ${{ github.sha }}).
 
             Download **superfarkle.apk** below on your Android phone and open it to install.
             The first time, Android asks you to allow installs from your browser or file app.
             New builds install over the old one, keeping your name and settings.
+
+            **superfarkle.aab** is the Android App Bundle for Google Play Console.
+            Only upload it if this build was signed with your real keystore.

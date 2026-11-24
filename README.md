@@ -39,7 +39,9 @@ redeploy or restart ends games in progress.
 ## Android app
 
 Every push builds an APK with GitHub Actions (`.github/workflows/android.yml`)
-and publishes it as **superfarkle.apk** on the `android-latest` release.
+and publishes it as **superfarkle.apk** on the `android-latest` release, together
+with **superfarkle.aab**, the app bundle that Google Play Console asks for (upload
+it only from a build signed with your real keystore).
 
 - The app bundles the client and plays on the hosted server
   (`https://superfarkle.onrender.com`, override with `FARKLE_SERVER` when
