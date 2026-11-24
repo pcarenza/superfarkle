@@ -98,25 +98,23 @@ layers and phone screenshots. The privacy policy page is `public/privacy.html`
 
 Voice works out of the box between most players using a free public STUN server.
 Players on strict networks (some mobile carriers, offices, schools) also need a TURN
-relay. Two ways to add one (both optional; set them in Render under your service ->
-Environment, never in the repo):
-
-**Cloudflare Realtime TURN** (check Cloudflare's current pricing and plan requirements; it may need a paid account):
-
-1. Cloudflare dashboard -> Realtime -> TURN -> create a TURN key.
-2. Copy its **Key ID** and **API token** (the token is shown once).
-3. In Render add `CF_TURN_KEY_ID` and `CF_TURN_API_TOKEN`, then save (it redeploys).
-
-The server asks Cloudflare for short-lived relay credentials when someone joins voice
-(`POST /v1/turn/keys/<key id>/credentials/generate-ice-servers`, cached for 6 hours) and
-falls back to STUN only, logging the reason, if that fails. After the first voice join,
-the Render logs show `Cloudflare TURN: credentials fetched`.
-
-**Any other TURN server**:
+relay. Any TURN provider works. Set `ICE_SERVERS` in Render (your service ->
+Environment, never in the repo) to a one-line JSON list. For example with Metered
+(use the exact server URLs and the username/credential from your Metered dashboard):
 
 ```
-ICE_SERVERS=[{"urls":"turn:turn.example.com:3478","username":"USER","credential":"SECRET"}]
+ICE_SERVERS=[{"urls":["turn:global.relay.metered.ca:80","turn:global.relay.metered.ca:80?transport=tcp","turn:global.relay.metered.ca:443","turns:global.relay.metered.ca:443?transport=tcp"],"username":"USER","credential":"SECRET"}]
 ```
+
+Notes: TURN credentials are sent to every player's browser (that is how TURN works),
+so use a credential dedicated to this game that you can revoke, and watch your
+provider's usage. Relay traffic counts against your provider plan.
+
+Alternatively, **Cloudflare Realtime TURN** is supported without static credentials:
+set `CF_TURN_KEY_ID` and `CF_TURN_API_TOKEN` and the server fetches short-lived ones
+(`POST /v1/turn/keys/<key id>/credentials/generate-ice-servers`, cached for 6 hours).
+Check Cloudflare's current pricing and plan requirements first. If a relay is
+unreachable the server falls back to STUN only and logs why.
 
 Up to 8 people can be in a room's voice chat at once (a full mesh: each device connects
 to every other, which is fine for audio).
