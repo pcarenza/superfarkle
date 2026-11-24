@@ -1,70 +1,44 @@
-"""Regenerate the Android launcher icons and splash screens (dice artwork).
+"""Regenerate the Android launcher icons and splash screens from the artwork in store/.
 Overwrites the PNGs already in android/app/src/main/res, keeping their sizes.
-  python3 scripts/make-icons.py
+  python3 scripts/make-icons.py [res_dir]
+Needs Pillow. The artwork itself (3D dice renders) lives in store/.
 """
-import glob, os
-from PIL import Image, ImageDraw, ImageFilter
+import glob, os, sys
+from PIL import Image, ImageDraw
 
-RES = os.path.join(os.path.dirname(__file__), '..', 'android', 'app', 'src', 'main', 'res')
-FELT = (24, 94, 60, 255)
-DARK = (15, 42, 28, 255)
-S = 1024
+ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+RES = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, 'android', 'app', 'src', 'main', 'res')
+STORE = os.path.join(ROOT, 'store')
+BG = Image.open(os.path.join(STORE, 'icon-background.png')).convert('RGBA')
+FG = Image.open(os.path.join(STORE, 'icon-foreground.png')).convert('RGBA')
+SPLASH_BG = (15, 42, 28, 255)
 
-def die(size, rot=0, pip_red=True):
-    """A rounded ivory die showing a five, drawn at high resolution."""
-    d = Image.new('RGBA', (S, S), (0, 0, 0, 0))
-    g = ImageDraw.Draw(d)
-    m = int(S * 0.08)
-    g.rounded_rectangle((m, m, S - m, S - m), radius=int(S * 0.2), fill=(246, 236, 210, 255), outline=(205, 190, 150, 255), width=10)
-    r = int(S * 0.065)
-    for (x, y) in [(.3, .3), (.7, .3), (.5, .5), (.3, .7), (.7, .7)]:
-        c = (S * x, S * y)
-        g.ellipse((c[0] - r, c[1] - r, c[0] + r, c[1] + r), fill=(30, 26, 22, 255))
-    if rot:
-        d = d.rotate(rot, resample=Image.BICUBIC)
-    return d
-
-def shadowed(img):
-    sh = Image.new('RGBA', img.size, (0, 0, 0, 0))
-    sh.paste((0, 0, 0, 120), mask=img.split()[3])
-    sh = sh.filter(ImageFilter.GaussianBlur(24))
-    out = Image.new('RGBA', img.size, (0, 0, 0, 0))
-    out.alpha_composite(sh, (0, 18))
-    out.alpha_composite(img)
-    return out
-
-def fit(img, w, h):
-    return img.resize((w, h), Image.LANCZOS)
-
-def write(path, img):
-    img.save(path)
-
-def fg_layer(w, h, scale):
-    d = shadowed(die(S, rot=-12))
+def layer(w, h, scale):
+    """The dice centred on a transparent w x h canvas, `scale` of its shorter side."""
     k = int(min(w, h) * scale)
-    layer = Image.new('RGBA', (w, h), (0, 0, 0, 0))
-    layer.alpha_composite(fit(d, k, k), ((w - k) // 2, (h - k) // 2))
-    return layer
+    out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    out.alpha_composite(FG.resize((k, k), Image.LANCZOS), ((w - k) // 2, (h - k) // 2))
+    return out
 
 for p in glob.glob(os.path.join(RES, 'mipmap-*', 'ic_launcher*.png')):
     w, h = Image.open(p).size
     name = os.path.basename(p)
     if 'foreground' in name:
-        write(p, fg_layer(w, h, 0.62))
+        img = layer(w, h, 1.2)
     elif 'background' in name:
-        write(p, Image.new('RGBA', (w, h), FELT))
-    else:
-        base = Image.new('RGBA', (w, h), FELT)
-        base.alpha_composite(fg_layer(w, h, 0.72))
+        img = BG.resize((w, h), Image.LANCZOS)
+    else:  # legacy launcher icon (adaptive layers are 108dp with a 66% safe zone; legacy fills the tile)
+        img = BG.resize((w, h), Image.LANCZOS)
+        img.alpha_composite(layer(w, h, 1.15))
         if 'round' in name:
             mask = Image.new('L', (w, h), 0)
             ImageDraw.Draw(mask).ellipse((0, 0, w - 1, h - 1), fill=255)
-            base.putalpha(mask)
-        write(p, base)
+            img.putalpha(mask)
+    img.save(p)
 
 for p in glob.glob(os.path.join(RES, 'drawable*', 'splash.png')):
     w, h = Image.open(p).size
-    img = Image.new('RGBA', (w, h), DARK)
-    img.alpha_composite(fg_layer(w, h, 0.3))
-    write(p, img)
-print('done')
+    img = Image.new('RGBA', (w, h), SPLASH_BG)
+    img.alpha_composite(layer(w, h, 0.5))
+    img.save(p)
+print('icons and splash screens written to', RES)

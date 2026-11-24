@@ -55,7 +55,7 @@ it only from a build signed with your real keystore).
 - Build locally (Android SDK + JDK 21): `npm run build:app`, then
   `cd android && ./gradlew assembleRelease`.
 - Rule changes only need a server deploy; client changes (`public/`, `shared/`)
-  need a new APK. Icons: `python3 scripts/make-icons.py` (needs Pillow).
+  need a new APK. Icons and splash screens: `python3 scripts/make-icons.py` (needs Pillow) regenerates them from the artwork in `store/`.
 
 ## How to play
 
@@ -78,3 +78,9 @@ four of a kind + a pair = 1,500, two triplets = 2,500, three 2s–6s = 200–600
 | **Farkle 2.0** | 300 | 1,000 / 2,000 / 3,000 |
 
 Rule sets live in `shared/config.js` (`SCORING`); the engine is `shared/rules.js`.
+
+## Store assets
+
+`store/` holds the Google Play artwork: the 512px icon, feature graphic, adaptive-icon
+layers and phone screenshots. The privacy policy page is `public/privacy.html`
+(served at `/privacy.html`).
