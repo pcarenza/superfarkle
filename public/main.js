@@ -1,5 +1,5 @@
 import { DiceView } from './scene.js';
-import { SEAT_COLORS, ENTRY_SCORE, TARGETS, SCORING, SCORING_MODES, DEFAULT_SCORING } from '/shared/config.js';
+import { COLORS, ENTRY_SCORE, TARGETS, SCORING, SCORING_MODES, DEFAULT_SCORING } from '/shared/config.js';
 import { scoreDice, usableDice } from '/shared/rules.js';
 import { sfx } from './sfx.js';
 
@@ -71,6 +71,8 @@ function emit(ev, data, errEl) {
   });
 }
 
+const prefColor = () => { const c = parseInt(store.get('color'), 10); return Number.isInteger(c) ? c : undefined; };
+
 function myName() {
   const n = $('name').value.trim();
   if (n) store.set('name', n);
@@ -81,7 +83,7 @@ $('create').onclick = async () => {
   sfx.unlock();
   if (!myName()) return ($('welcome-error').textContent = 'Please enter your name first.');
   wantRoom = true;
-  const res = await emit('createRoom', { name: myName() }, $('welcome-error'));
+  const res = await emit('createRoom', { name: myName(), color: prefColor() }, $('welcome-error'));
   if (res?.ok) joined(res.code);
   else wantRoom = false;
 };
@@ -91,7 +93,7 @@ async function join() {
   const code = $('code').value.trim().toUpperCase();
   if (code.length !== 4) return ($('welcome-error').textContent = 'Room codes are 4 letters.');
   wantRoom = true;
-  const res = await emit('joinRoom', { code, name: myName() }, $('welcome-error'));
+  const res = await emit('joinRoom', { code, name: myName(), color: prefColor() }, $('welcome-error'));
   if (res?.ok) joined(res.code);
   else wantRoom = false;
 }
@@ -128,7 +130,7 @@ socket.on('connect', () => {
   const name = store.get('name');
   if (code && name && (!urlCode || urlCode.toUpperCase() === code)) {
     wantRoom = true;
-    emit('joinRoom', { code, name }).then((res) => {
+    emit('joinRoom', { code, name, color: prefColor() }).then((res) => {
       if (!res?.ok) { wantRoom = false; store.set('room', null); screen('welcome'); }
     });
   }
@@ -188,10 +190,23 @@ function renderLobby() {
   ul.replaceChildren();
   room.seats.forEach((s, i) => {
     const li = document.createElement('li');
-    li.innerHTML = `<span class="dot" style="--c:${SEAT_COLORS[i].hex}"></span><span class="who"></span>`;
+    li.innerHTML = `<span class="dot" style="--c:${s ? s.color.hex : '#555'}"></span><span class="who"></span>`;
     const who = li.querySelector('.who');
     if (s) {
       who.textContent = s.name;
+      if (s.bot && you.isHost) {
+        const dot = li.querySelector('.dot');
+        dot.classList.add('clickable');
+        dot.title = 'Change color';
+        dot.onclick = () => {
+          const used = new Set(room.seats.filter(Boolean).map((x) => x.color.hex));
+          const cur = COLORS.findIndex((c) => c.hex === s.color.hex);
+          for (let k = 1; k <= COLORS.length; k++) {
+            const next = (cur + k) % COLORS.length;
+            if (!used.has(COLORS[next].hex)) return emit('setColor', { color: next, seat: i }, $('lobby-error'));
+          }
+        };
+      }
       if (s.bot) li.insertAdjacentHTML('beforeend', '<span class="tag">computer</span>');
       else if (!s.connected) li.insertAdjacentHTML('beforeend', '<span class="tag">away</span>');
       if (i === you.seat) {
@@ -201,13 +216,14 @@ function renderLobby() {
         li.append(btn('Remove', () => emit('removeSeat', { seat: i }, $('lobby-error'))));
       }
     } else {
-      who.textContent = `${SEAT_COLORS[i].name} — open`;
+      who.textContent = `Seat ${i + 1} — open`;
       who.classList.add('empty');
       li.append(btn(you.seat === -1 ? 'Sit here' : 'Move here', () => emit('sit', { seat: i }, $('lobby-error'))));
       if (you.isHost) li.append(btn('+ Computer', () => emit('addBot', { seat: i }, $('lobby-error'))));
     }
     ul.append(li);
   });
+  renderSwatches();
   $('target').value = room.options.target;
   $('scoring').value = room.options.scoring;
   $('entry').checked = room.options.entry > 0;
@@ -222,6 +238,30 @@ function renderLobby() {
     : `Waiting for ${room.hostName ?? 'the host'} to start the game…`;
 }
 
+// "Your color": ten swatches; colors other players hold are greyed out.
+function renderSwatches() {
+  const me = room.you.seat;
+  $('color-pick').hidden = me === -1;
+  const box = $('swatches');
+  box.replaceChildren();
+  if (me === -1) return;
+  const mineHex = room.seats[me].color.hex;
+  COLORS.forEach((c, i) => {
+    const holder = room.seats.findIndex((s) => s && s.color.hex === c.hex);
+    const b = document.createElement('button');
+    b.className = 'sw' + (c.hex === mineHex ? ' mine' : holder !== -1 ? ' taken' : '');
+    b.style.setProperty('--c', c.hex);
+    b.disabled = holder !== -1 && c.hex !== mineHex;
+    b.title = holder === -1 || c.hex === mineHex ? c.name : `${c.name} — taken by ${room.seats[holder].name}`;
+    b.setAttribute('aria-label', b.title);
+    b.onclick = async () => {
+      const res = await emit('setColor', { color: i }, $('lobby-error'));
+      if (res?.ok) store.set('color', String(i));
+    };
+    box.append(b);
+  });
+}
+
 function btn(label, fn) {
   const b = document.createElement('button');
   b.className = 'small';
@@ -231,7 +271,8 @@ function btn(label, fn) {
 }
 
 // ------------------------------------------------------------------ game --
-const nameOf = (seat) => room?.seats[seat]?.name ?? SEAT_COLORS[seat].name;
+const nameOf = (seat) => room?.seats[seat]?.name ?? `Player ${seat + 1}`;
+const hexOf = (seat) => room?.seats[seat]?.color?.hex ?? '#888';
 const isMine = (seat) => room && room.you.seat === seat;
 const label = (seat) => (isMine(seat) ? 'You' : nameOf(seat));
 const blankSlots = () => Array.from({ length: 6 }, () => ({ v: 0, kept: false }));
@@ -246,7 +287,7 @@ function renderPlayers(g) {
     const div = document.createElement('div');
     div.className = 'pl' + (g.turn === s && g.phase !== 'over' ? ' turn' : '') + (seat && !seat.connected ? ' off' : '')
       + (top > 0 && g.scores[s] === top ? ' leader' : '');
-    div.innerHTML = `<span class="dot" style="--c:${SEAT_COLORS[s].hex}"></span><span class="name"></span><span class="score">${fmt(g.scores[s])}</span>`;
+    div.innerHTML = `<span class="dot" style="--c:${hexOf(s)}"></span><span class="name"></span><span class="score">${fmt(g.scores[s])}</span>`;
     div.querySelector('.name').textContent = (isMine(s) ? '★ ' : '') + (seat?.name ?? '?') + (seat?.bot ? ' 🤖' : seat && !seat.connected ? ' (away)' : '');
     if (g.entry && !g.onBoard[s]) div.insertAdjacentHTML('beforeend', `<span class="off-board">needs ${g.entry}</span>`);
     el.append(div);
@@ -376,7 +417,7 @@ function buildTally(g, final) {
     const th = document.createElement('th');
     const b = document.createElement('span');
     b.className = 'badge';
-    b.style.setProperty('--c', SEAT_COLORS[s].hex);
+    b.style.setProperty('--c', hexOf(s));
     b.textContent = initialOf(s);
     th.title = nameOf(s);
     th.append(b);
@@ -570,7 +611,7 @@ function addChatMessage(m, live) {
   div.className = 'msg' + (mine ? ' mine' : '');
   const dot = document.createElement('span');
   dot.className = 'mini';
-  if (m.seat >= 0) dot.style.setProperty('--c', SEAT_COLORS[m.seat].hex);
+  if (m.seat >= 0) dot.style.setProperty('--c', hexOf(m.seat));
   const name = document.createElement('b');
   name.textContent = `${m.name}: `;
   div.append(dot, name, document.createTextNode(m.text));

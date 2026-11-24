@@ -4,7 +4,7 @@ import { Server } from 'socket.io';
 import { randomInt, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { MAX_SEATS, SEAT_COLORS, TARGETS, DEFAULT_TARGET, ENTRY_SCORE, SCORING, DEFAULT_SCORING } from './shared/config.js';
+import { MAX_SEATS, COLORS, TARGETS, DEFAULT_TARGET, ENTRY_SCORE, SCORING, DEFAULT_SCORING } from './shared/config.js';
 import { newGameState, applyRoll, applyKeep, applyPass, chooseBotAction } from './shared/rules.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -64,7 +64,7 @@ class Room {
         name: s.name,
         bot: !!s.bot,
         connected: s.bot || !!this.players.get(s.token)?.connected,
-        color: SEAT_COLORS[i],
+        color: COLORS[s.color],
       }),
       spectators: [...this.players.values()].filter((p) => p.connected && this.seatOf(p.token) === -1).map((p) => p.name),
       hostName: this.players.get(this.host)?.name ?? null,
@@ -88,8 +88,15 @@ class Room {
     return seat.bot || !this.players.get(seat.token)?.connected;
   }
 
+  // The preferred colour if nobody has it, otherwise the first free one.
+  pickColor(pref) {
+    const used = new Set(this.seats.filter(Boolean).map((s) => s.color));
+    if (Number.isInteger(pref) && pref >= 0 && pref < COLORS.length && !used.has(pref)) return pref;
+    return COLORS.findIndex((_, i) => !used.has(i));
+  }
+
   nameOf(seat) {
-    return this.seats[seat]?.name ?? SEAT_COLORS[seat].name;
+    return this.seats[seat]?.name ?? `Player ${seat + 1}`;
   }
 
   // Run a game action, note it in the chat feed, and let the clients see it.
@@ -183,7 +190,7 @@ io.on('connection', (socket) => {
     const seat = r.seatOf(token);
     if (seat !== -1) {
       // Mid-game a computer takes over the seat; in the lobby it simply frees up.
-      if (r.game && r.game.order.includes(seat)) r.seats[seat] = { token: `bot-${seat}`, name: `${p?.name ?? 'Player'} (bot)`, bot: true };
+      if (r.game && r.game.order.includes(seat)) r.seats[seat] = { token: `bot-${seat}`, name: `${p?.name ?? 'Player'} (bot)`, bot: true, color: r.seats[seat].color };
       else r.seats[seat] = null;
     }
     if (p) r.addChat(null, `${p.name} left`, true);
@@ -192,25 +199,25 @@ io.on('connection', (socket) => {
     r.after();
   }
 
-  socket.on('createRoom', ({ name } = {}, ack) => {
+  socket.on('createRoom', ({ name, color } = {}, ack) => {
     const r = new Room(newCode());
     rooms.set(r.code, r);
     r.host = token;
     enter(r, cleanName(name));
     const free = r.seats.findIndex((s) => !s);
-    r.seats[free] = { token, name: cleanName(name) };
+    r.seats[free] = { token, name: cleanName(name), color: r.pickColor(color) };
     r.broadcast();
     ok(ack, { code: r.code });
   });
 
-  socket.on('joinRoom', ({ code, name } = {}, ack) => {
+  socket.on('joinRoom', ({ code, name, color } = {}, ack) => {
     const r = rooms.get(String(code ?? '').toUpperCase().trim());
     if (!r) return fail(ack, 'No room with that code.');
     enter(r, cleanName(name));
     // Seat newcomers automatically while the game hasn't started.
     if (!r.game && r.seatOf(token) === -1) {
       const free = r.seats.findIndex((s) => !s);
-      if (free !== -1) { r.seats[free] = { token, name: cleanName(name) }; r.broadcast(); }
+      if (free !== -1) { r.seats[free] = { token, name: cleanName(name), color: r.pickColor(color) }; r.broadcast(); }
     }
     ok(ack, { code: r.code });
   });
@@ -223,8 +230,9 @@ io.on('connection', (socket) => {
     if (!inLobby()) return fail(ack, 'Game already started.');
     if (!(seat >= 0 && seat < MAX_SEATS) || room.seats[seat]) return fail(ack, 'Seat taken.');
     const cur = room.seatOf(token);
+    const keep = cur !== -1 ? room.seats[cur].color : undefined;
     if (cur !== -1) room.seats[cur] = null;
-    room.seats[seat] = { token, name: room.players.get(token).name };
+    room.seats[seat] = { token, name: room.players.get(token).name, color: room.pickColor(keep) };
     room.broadcast();
     ok(ack);
   });
@@ -240,7 +248,7 @@ io.on('connection', (socket) => {
   socket.on('addBot', ({ seat } = {}, ack) => {
     if (!inLobby() || !isHost()) return fail(ack, 'Only the host can add computer players.');
     if (!(seat >= 0 && seat < MAX_SEATS) || room.seats[seat]) return fail(ack, 'Seat taken.');
-    room.seats[seat] = { token: `bot-${seat}`, name: BOT_NAMES[seat], bot: true };
+    room.seats[seat] = { token: `bot-${seat}`, name: BOT_NAMES[seat], bot: true, color: room.pickColor() };
     room.broadcast();
     ok(ack);
   });
@@ -250,6 +258,21 @@ io.on('connection', (socket) => {
     if (!room.seats[seat]) return ok(ack);
     if (room.seats[seat].token === token) return fail(ack, 'Use "stand up" for yourself.');
     room.seats[seat] = null;
+    room.broadcast();
+    ok(ack);
+  });
+
+  // Pick a colour for yourself (or, as host, for a computer player).
+  socket.on('setColor', ({ color, seat } = {}, ack) => {
+    if (!inLobby()) return fail(ack, 'Colors are chosen before the game starts.');
+    const mine = room.seatOf(token);
+    const target = seat === undefined ? mine : seat;
+    if (!room.seats[target]) return fail(ack, 'Sit down first.');
+    if (target !== mine && !(isHost() && room.seats[target].bot)) return fail(ack, 'You can only change your own color.');
+    if (!Number.isInteger(color) || color < 0 || color >= COLORS.length) return fail(ack, 'Unknown color.');
+    const holder = room.seats.findIndex((s) => s && s.color === color);
+    if (holder !== -1 && holder !== target) return fail(ack, `${COLORS[color].name} is already taken.`);
+    room.seats[target].color = color;
     room.broadcast();
     ok(ack);
   });

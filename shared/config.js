@@ -5,13 +5,18 @@ export const TARGETS = [5000, 10000];
 export const DEFAULT_TARGET = 10000;
 export const ENTRY_SCORE = 500; // minimum turn total needed to "get on the board"
 
-export const SEAT_COLORS = [
+// Player colors: each player picks one, and no two players share a color.
+export const COLORS = [
   { name: 'Crimson', hex: '#e0443a' },
   { name: 'Azure', hex: '#3d8ee6' },
   { name: 'Emerald', hex: '#33b46a' },
   { name: 'Amber', hex: '#e8a928' },
   { name: 'Violet', hex: '#9a5fd6' },
   { name: 'Teal', hex: '#27b5b0' },
+  { name: 'Pink', hex: '#ee6aa7' },
+  { name: 'Orange', hex: '#f07a2a' },
+  { name: 'Lime', hex: '#8fc02f' },
+  { name: 'Brown', hex: '#a0693f' },
 ];
 
 // Scoring rule sets. Everything except three/four/five/six of a kind is shared:
