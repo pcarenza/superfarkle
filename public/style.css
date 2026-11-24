@@ -190,3 +190,5 @@ table.tally.n6 .badge, table.tally.n5 .badge { width: 22px; height: 22px; font-s
 .sw.mine::after { content: "✓"; color: #fff; font: bold 16px/1 system-ui, sans-serif; text-shadow: 0 1px 2px #000; position: absolute; inset: 0; display: grid; place-items: center; }
 .sw.taken { opacity: .3; cursor: not-allowed; }
 .dot.clickable { cursor: pointer; }
+
+a.link-small { color: var(--muted); font-size: 12px; text-align: center; }
