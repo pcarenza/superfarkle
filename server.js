@@ -4,8 +4,8 @@ import { Server } from 'socket.io';
 import { randomInt, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { MAX_SEATS, COLORS, TARGETS, DEFAULT_TARGET, ENTRY_SCORE, SCORING, DEFAULT_SCORING } from './shared/config.js';
-import { newGameState, applyRoll, applyKeep, applyPass, chooseBotAction } from './shared/rules.js';
+import { MAX_SEATS, COLORS, TARGETS, DEFAULT_TARGET, ENTRY_SCORE, SCORING, DEFAULT_SCORING, MODES, MODE_IDS, DEFAULT_MODE } from './shared/config.js';
+import { newGameState, applyRoll, applyKeep, applyPass, applyOffer, chooseBotAction, chooseBotOffer } from './shared/rules.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -45,7 +45,7 @@ class Room {
     this.seats = Array(MAX_SEATS).fill(null); // {token, name, bot}
     this.host = null;
     this.game = null;
-    this.options = { target: DEFAULT_TARGET, scoring: DEFAULT_SCORING, entry: ENTRY_SCORE };
+    this.options = { target: DEFAULT_TARGET, scoring: DEFAULT_SCORING, entry: ENTRY_SCORE, mode: DEFAULT_MODE };
     this.timer = null;
     this.chat = [];
     this.chatId = 0;
@@ -106,11 +106,15 @@ class Room {
     fn(g);
     const l = g.last;
     if (l?.type === 'bank') this.addChat(null, `${this.nameOf(seat)} banked ${l.points} (${g.scores[seat]} total)`, true);
+    else if (l?.type === 'farkle' && l.highStakes) this.addChat(null, `${this.nameOf(seat)} farkled the high stakes roll!`, true);
     else if (l?.type === 'farkle') this.addChat(null, `${this.nameOf(seat)} farkled${l.lost ? ` and lost ${l.lost}` : ''}!`, true);
+    else if (l?.type === 'decline') this.addChat(null, `${this.nameOf(seat)} passed on the high stakes roll`, true);
+    else if (l?.type === 'roll' && l.highStakes) this.addChat(null, `${this.nameOf(seat)} took the high stakes roll for +${l.stake}!`, true);
     else if (l?.hot) this.addChat(null, `${this.nameOf(seat)} has hot dice!`, true);
     if (g.final && l?.type === 'bank' && g.final.trigger === seat && g.final.pending.length === g.order.length - 1) {
       this.addChat(null, `${this.nameOf(seat)} reached ${g.target}! Everyone else gets one last turn.`, true);
     }
+    if (g.phase === 'offer') this.addChat(null, `High stakes! ${this.nameOf(g.turn)} can roll ${g.offer.dice} dice for +${g.offer.stake}.`, true);
     if (g.phase === 'over') this.addChat(null, `${this.nameOf(g.winner)} wins with ${g.scores[g.winner]}!`, true);
     this.after();
   }
@@ -130,7 +134,7 @@ class Room {
         else if (g.phase === 'select') {
           const { keep, bank } = chooseBotAction(g);
           this.act((x) => applyKeep(x, keep, bank, rollDie));
-        }
+        } else if (g.phase === 'offer') this.act((x) => applyOffer(x, chooseBotOffer(x), rollDie));
       }, animMs + 400 + randomInt(700));
     }
   }
@@ -277,7 +281,7 @@ io.on('connection', (socket) => {
     ok(ack);
   });
 
-  socket.on('setOptions', ({ target, scoring, entry } = {}, ack) => {
+  socket.on('setOptions', ({ target, scoring, entry, mode } = {}, ack) => {
     if (!inLobby() || !isHost()) return fail(ack, 'Only the host can change the rules.');
     if (target !== undefined) {
       if (!TARGETS.includes(target)) return fail(ack, 'Unknown target score.');
@@ -286,6 +290,10 @@ io.on('connection', (socket) => {
     if (entry !== undefined) {
       if (entry !== 0 && entry !== ENTRY_SCORE) return fail(ack, 'Unknown entry rule.');
       room.options.entry = entry;
+    }
+    if (mode !== undefined) {
+      if (!MODE_IDS.includes(mode)) return fail(ack, 'Unknown game mode.');
+      room.options.mode = mode;
     }
     if (scoring !== undefined) {
       if (!Object.hasOwn(SCORING, scoring)) return fail(ack, 'Unknown scoring rules.');
@@ -300,7 +308,7 @@ io.on('connection', (socket) => {
     const seated = room.seats.map((s, i) => (s ? i : -1)).filter((i) => i !== -1);
     if (seated.length < 2) return fail(ack, 'Need at least 2 players.');
     room.game = newGameState(seated, room.options);
-    room.addChat(null, `Game started! ${SCORING[room.options.scoring].name} scoring, first to ${room.options.target} wins${room.options.entry ? '' : ', no minimum to get on the board'}.`, true);
+    room.addChat(null, `Game started! ${SCORING[room.options.scoring].name} scoring, first to ${room.options.target} wins${room.options.entry ? '' : ', no minimum to get on the board'}${room.options.mode === 'highstakes' ? '. High Stakes mode is on' : ''}.`, true);
     room.after();
     ok(ack);
   });
@@ -321,6 +329,14 @@ io.on('connection', (socket) => {
     } catch (e) {
       return fail(ack, e.message);
     }
+    ok(ack);
+  });
+
+  // High Stakes: take (or pass on) the dice the previous player left behind.
+  socket.on('offer', ({ take } = {}, ack) => {
+    const g = room?.game;
+    if (!g || g.phase !== 'offer' || room.seatOf(token) !== g.turn) return fail(ack, 'No high stakes offer for you.');
+    room.act((x) => applyOffer(x, !!take, rollDie));
     ok(ack);
   });
 

@@ -1,6 +1,6 @@
 // Farkle rules engine. Pure functions over a JSON-serialisable game state, so
 // the server can broadcast it as-is and the client can reuse the scoring.
-import { DICE, MAX_SEATS, ENTRY_SCORE, DEFAULT_TARGET, SCORING, DEFAULT_SCORING } from './config.js';
+import { DICE, MAX_SEATS, ENTRY_SCORE, DEFAULT_TARGET, SCORING, DEFAULT_SCORING, MODES, DEFAULT_MODE } from './config.js';
 
 // ---------------------------------------------------------------- scoring --
 // 1 = 100, 5 = 50. Three of a kind = face x 100, with three 1s and four-or-more
@@ -85,7 +85,9 @@ export function newGameState(order, opts = {}) {
   return {
     order: [...order],
     turn: order[0],
-    phase: 'roll', // roll | select | farkle | over
+    phase: 'roll', // roll | select | farkle | offer | over
+    mode: MODES[opts.mode] ? opts.mode : DEFAULT_MODE,
+    offer: null, // High Stakes: {stake, dice, from, slots} offered to the player whose turn it is
     target: opts.target ?? DEFAULT_TARGET,
     entry: opts.entry ?? ENTRY_SCORE,
     scoring: SCORING[opts.scoring] ? opts.scoring : DEFAULT_SCORING,
@@ -119,7 +121,7 @@ export function applyRoll(g, rollDie, extra = {}) {
     g.last = { type: 'roll', seat, rollId: g.rollId, ...extra };
   } else {
     g.phase = 'farkle';
-    g.last = { type: 'farkle', seat, rollId: g.rollId, lost: g.turnScore, ...extra };
+    g.last = { type: 'farkle', seat, rollId: g.rollId, lost: extra.highStakes ? 0 : g.turnScore, ...extra };
   }
   return g;
 }
@@ -155,7 +157,14 @@ export function applyKeep(g, indices, bank, rollDie) {
     g.onBoard[seat] = true;
     g.seq++;
     g.last = { type: 'bank', seat, points, gained: chk.score };
-    endTurn(g, true);
+    // High Stakes: once everyone is on the board the next player may roll the
+    // dice left behind (all six after hot dice) for this turn's points.
+    let offer = null;
+    if (g.mode === 'highstakes' && g.order.every((s) => g.onBoard[s])) {
+      const slots = g.slots.every((s) => s.kept) ? freshSlots() : g.slots.map((s) => (s.kept ? { ...s } : { v: 0, kept: false }));
+      offer = { stake: points, dice: slots.filter((s) => !s.kept).length, from: seat, slots };
+    }
+    endTurn(g, true, offer);
     return g;
   }
   const hot = g.slots.every((s) => s.kept);
@@ -174,7 +183,7 @@ export function applyPass(g) {
   return g;
 }
 
-function endTurn(g, banked) {
+function endTurn(g, banked, offer = null) {
   const seat = g.turn;
   g.history.push({ r: g.round, s: seat, f: !banked, t: g.scores[seat] });
   if (banked && !g.final && g.scores[seat] >= g.target) {
@@ -194,6 +203,33 @@ function endTurn(g, banked) {
   if (next === 0) g.round++;
   g.turn = g.order[next];
   g.phase = 'roll';
+  g.offer = null;
+  if (offer) {
+    g.offer = offer;
+    g.slots = offer.slots.map((s) => ({ ...s }));
+    g.phase = 'offer';
+  }
+}
+
+/**
+ * High Stakes: the player to move takes or declines the dice left behind.
+ * Taking them starts the turn with the previous player's points; if the roll
+ * scores they keep those points plus what they rolled, otherwise it is a farkle.
+ */
+export function applyOffer(g, take, rollDie) {
+  if (g.phase !== 'offer') throw new Error('no offer to answer');
+  const offer = g.offer;
+  g.offer = null;
+  g.phase = 'roll';
+  if (!take) {
+    g.slots = freshSlots();
+    g.turnScore = 0;
+    g.seq++;
+    g.last = { type: 'decline', seat: g.turn };
+    return g;
+  }
+  g.turnScore = offer.stake;
+  return applyRoll(g, rollDie, { highStakes: true, stake: offer.stake, from: offer.from, dice: offer.dice });
 }
 
 // -------------------------------------------------------------------- bot --
@@ -225,4 +261,13 @@ export function chooseBotAction(g) {
     bank = g.scores[seat] + total > rival;
   } else bank = best.dl < 6 && total >= BANK_AT[best.dl];
   return { keep, bank };
+}
+
+// Chance that n dice contain at least one scoring die.
+const SCORE_ODDS = [0, 0.333, 0.556, 0.722, 0.843, 0.923, 0.977];
+
+/** Should a computer player take a High Stakes offer? Compare against a typical turn. */
+export function chooseBotOffer(g) {
+  const { stake, dice } = g.offer;
+  return SCORE_ODDS[dice] * (stake + 120) >= 380;
 }

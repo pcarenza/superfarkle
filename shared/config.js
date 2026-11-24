@@ -54,3 +54,19 @@ export const SCORING = {
 };
 export const SCORING_MODES = Object.keys(SCORING);
 export const DEFAULT_SCORING = 'hybrid';
+
+// Game modes. High Stakes starts once every player is on the board: whenever a
+// player banks, the next player may roll the dice they left behind and, if it
+// scores, add that player's turn total to their own.
+export const MODES = {
+  standard: {
+    name: 'Standard',
+    blurb: 'Classic Farkle turns.',
+  },
+  highstakes: {
+    name: 'High Stakes',
+    blurb: 'Once everyone is on the board, you can roll the dice the last player left behind and win their points too.',
+  },
+};
+export const MODE_IDS = Object.keys(MODES);
+export const DEFAULT_MODE = 'standard';

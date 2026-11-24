@@ -64,6 +64,11 @@ it only from a build signed with your real keystore).
 - **Farkle:** a roll with no scoring dice loses everything from that turn.
 - **Hot dice:** score with all six and roll all six again.
 - By default your first banked turn needs at least **500** to get on the board (the host can switch this off in the lobby).
+- **High Stakes mode** (a host option): once every player is on the board, whenever
+  someone banks, the next player may roll the dice that player left behind (all six
+  after hot dice). If the roll scores they add the previous player's whole turn
+  total to their own and can bank or keep rolling; if not, it's a farkle and they
+  lose their turn. They can also pass and play a normal turn. Stakes can chain.
 - First to the target (10,000 or 5,000, chosen by the host) triggers a final
   round: everyone else gets one more turn to beat them.
 

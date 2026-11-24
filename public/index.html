@@ -44,6 +44,8 @@
       <div class="label">Your color</div>
       <div id="swatches"></div>
     </div>
+    <label>Game mode <select id="mode"></select></label>
+    <p id="mode-blurb" class="muted"></p>
     <div class="row">
       <label>Play to <select id="target"></select></label>
       <label>Scoring <select id="scoring"></select></label>
@@ -70,6 +72,8 @@
         <button id="roll" class="primary">Roll</button>
         <button id="again-roll" class="primary">Keep &amp; roll</button>
         <button id="bank" class="bank">Keep &amp; bank</button>
+        <button id="hs-take" class="primary">Roll them!</button>
+        <button id="hs-pass">Pass</button>
       </div>
     </div>
   </div>
@@ -127,6 +131,7 @@
       <li><b>Farkle!</b> If a roll has no scoring dice, you lose everything you scored this turn.</li>
       <li><b>Hot dice:</b> score with all six dice and you get to roll all six again.</li>
       <li id="rule-entry"><b>Getting on the board:</b> your first banked turn must total at least 500 (the host can turn this off).</li>
+      <li id="rule-hs"><b>High Stakes:</b> once every player is on the board, whenever someone banks, the next player may roll the dice that player left behind (all six after hot dice). If the roll scores, you add that player's whole turn total to your own, then bank or keep rolling as usual. If it doesn't score, it's a farkle and you lose your turn. Or pass and take a normal turn.</li>
       <li>Every die you keep must score. The host picks the scoring rules in the lobby; this table shows the ones for your game.</li>
     </ol>
     <h3 id="rules-scoring-title"></h3>

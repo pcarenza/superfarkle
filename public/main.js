@@ -1,5 +1,5 @@
 import { DiceView } from './scene.js';
-import { COLORS, ENTRY_SCORE, TARGETS, SCORING, SCORING_MODES, DEFAULT_SCORING } from '/shared/config.js';
+import { COLORS, ENTRY_SCORE, TARGETS, SCORING, SCORING_MODES, DEFAULT_SCORING, MODES, MODE_IDS } from '/shared/config.js';
 import { scoreDice, usableDice } from '/shared/rules.js';
 import { sfx } from './sfx.js';
 
@@ -162,6 +162,8 @@ $('gameover-close').onclick = () => { gameoverDismissed = true; $('gameover').hi
 for (const t of TARGETS) $('target').add(new Option(t.toLocaleString(), t));
 $('target').onchange = () => emit('setOptions', { target: Number($('target').value) }, $('lobby-error'));
 for (const m of SCORING_MODES) $('scoring').add(new Option(SCORING[m].name, m));
+for (const id of MODE_IDS) $('mode').add(new Option(MODES[id].name, id));
+$('mode').onchange = () => emit('setOptions', { mode: $('mode').value }, $('lobby-error'));
 $('entry').onchange = () => emit('setOptions', { entry: $('entry').checked ? ENTRY_SCORE : 0 }, $('lobby-error'));
 $('scoring').onchange = () => emit('setOptions', { scoring: $('scoring').value }, $('lobby-error'));
 
@@ -227,7 +229,9 @@ function renderLobby() {
   $('target').value = room.options.target;
   $('scoring').value = room.options.scoring;
   $('entry').checked = room.options.entry > 0;
-  $('target').disabled = $('scoring').disabled = $('entry').disabled = !you.isHost;
+  $('mode').value = room.options.mode;
+  $('mode-blurb').textContent = MODES[room.options.mode].blurb;
+  $('target').disabled = $('scoring').disabled = $('entry').disabled = $('mode').disabled = !you.isHost;
   $('scoring-blurb').textContent = SCORING[room.options.scoring].blurb;
   $('spectators').textContent = room.spectators.length ? `Watching: ${room.spectators.join(', ')}` : '';
   const seated = room.seats.filter(Boolean).length;
@@ -284,6 +288,7 @@ const isMine = (seat) => room && room.you.seat === seat;
 const label = (seat) => (isMine(seat) ? 'You' : nameOf(seat));
 const blankSlots = () => Array.from({ length: 6 }, () => ({ v: 0, kept: false }));
 const fmt = (n) => n.toLocaleString();
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 function renderPlayers(g) {
   const el = $('players');
@@ -315,6 +320,7 @@ function renderControls() {
   if (g.phase === 'over') msg = `${label(g.winner)} won!`;
   else if (g.phase === 'roll') msg = mine ? 'Your turn — roll the dice!' : `${nameOf(g.turn)} is rolling…`;
   else if (g.phase === 'select') msg = mine ? 'Tap the dice you want to keep' : `${nameOf(g.turn)} is choosing…`;
+  else if (g.phase === 'offer') msg = mine ? 'High stakes! Roll the dice left behind?' : `${nameOf(g.turn)} is deciding on the high stakes roll…`;
   else msg = `${label(g.turn)} farkled!`;
   if (g.final && g.phase !== 'over') msg += g.final.trigger === g.turn ? '' : ' · last turn!';
   $('status').textContent = msg;
@@ -326,6 +332,9 @@ function renderControls() {
       tally = `This turn <b>${fmt(g.turnScore)}</b>${score ? ` + <span class="ok">${fmt(score)}</span> selected = <b>${fmt(total)}</b>` : ''}`;
       if (g.entry && !g.onBoard[g.turn] && total < g.entry) tally += `<br>You need ${fmt(g.entry)} to get on the board`;
     } else tally = `This turn <b>${fmt(g.turnScore)}</b>`;
+  } else if (g.phase === 'offer') {
+    tally = `${g.offer.dice} dice for <b>+${fmt(g.offer.stake)}</b> from ${esc(label(g.offer.from))}`;
+    if (mine) tally += '<br>Score and you win their points too. No score is a farkle.';
   } else if (g.turnScore) tally = `This turn <b>${fmt(g.turnScore)}</b>`;
   $('tally').innerHTML = tally;
 
@@ -334,7 +343,10 @@ function renderControls() {
   $('roll').disabled = !canAct;
   $('again-roll').disabled = !canAct || !score;
   $('bank').disabled = !canAct || !score || (!g.onBoard[g.turn] && g.turnScore + score < g.entry);
-  $('buttons').hidden = $('roll').hidden && $('again-roll').hidden;
+  $('hs-take').hidden = $('hs-pass').hidden = !(g.phase === 'offer' && mine);
+  if (g.phase === 'offer') $('hs-take').textContent = `Roll ${g.offer.dice} ${g.offer.dice === 1 ? 'die' : 'dice'} (+${fmt(g.offer.stake)})`;
+  $('hs-take').disabled = $('hs-pass').disabled = !canAct;
+  $('buttons').hidden = $('roll').hidden && $('again-roll').hidden && $('hs-take').hidden;
   fitTable();
 }
 
@@ -385,6 +397,8 @@ function roll() {
   if (g && isMine(g.turn) && g.phase === 'roll' && !animating) act('roll');
 }
 $('roll').onclick = roll;
+$('hs-take').onclick = () => act('offer', { take: true });
+$('hs-pass').onclick = () => act('offer', { take: false });
 $('again-roll').onclick = () => act('keep', { dice: [...sel], bank: false });
 $('bank').onclick = () => act('keep', { dice: [...sel], bank: true });
 window.addEventListener('keydown', (e) => {
@@ -498,6 +512,7 @@ async function present(next) {
     view.setSelection(sel, null, false);
     renderRulesTable(next.options.scoring);
     $('rule-entry').hidden = !next.options.entry;
+    $('rule-hs').hidden = next.options.mode !== 'highstakes';
     renderLobby();
     screen('lobby');
     return;
@@ -506,6 +521,7 @@ async function present(next) {
   screen('game');
   view.setDiceColor(hexOf(g.turn));
   renderRulesTable(g.scoring);
+  $('rule-hs').hidden = g.mode !== 'highstakes';
   $('rule-entry').hidden = !g.entry;
   pending = false;
   const newRoll = prev && g.rollId > prev.rollId;
@@ -523,6 +539,7 @@ async function present(next) {
     await view.roll(g.slots, g.rollId, sfx.rattle);
     animating = false;
     if (g.last?.hot) { toast('Hot dice! 🔥', 'good', 1300); sfx.hot(); }
+    else if (g.last?.highStakes && g.phase === 'select') { toast(`High stakes! +${fmt(g.last.stake)} 🎲`, 'good', 1500); sfx.hot(); }
     if (g.phase === 'farkle') {
       toast('FARKLE!', 'bad', 1900);
       sfx.farkle();
