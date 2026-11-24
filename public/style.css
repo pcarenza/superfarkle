@@ -214,3 +214,13 @@ a.link-small { color: var(--muted); font-size: 12px; text-align: center; }
 a.app-link { display: block; width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 10px; text-align: center; text-decoration: none;
   color: var(--text); background: rgba(255,255,255,.08); border: 1px solid var(--card-edge); }
 a.app-link:hover { background: rgba(255,255,255,.15); }
+
+/* Phones: the lobby card starts below the toolbar and the status bar / notch, and scrolls inside the rest. */
+@media (max-width: 720px) {
+  #lobby {
+    top: calc(64px + env(safe-area-inset-top));
+    transform: translate(-50%, 0);
+    max-height: calc(100vh - 76px - env(safe-area-inset-top));
+    max-height: calc(100dvh - 76px - env(safe-area-inset-top));
+  }
+}
