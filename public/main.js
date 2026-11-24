@@ -366,10 +366,10 @@ function hideSizePop() { $('size-pop').hidden = true; $('tally-pop').hidden = tr
 const initialOf = (seat) => ([...(room?.seats[seat]?.name ?? '').trim()][0] ?? '?').toUpperCase();
 
 // Turn-by-turn running scores: one row per round, one column per player.
-// A cell holds the player's total after that turn, or F if they farkled.
+// A cell holds the player's total after that turn, with a red F after it if they farkled.
 function buildTally(g, final) {
   const t = document.createElement('table');
-  t.className = 'tally';
+  t.className = `tally n${g.order.length}`;
   const head = t.createTHead().insertRow();
   head.insertCell().outerHTML = '<th class="rn">#</th>';
   for (const s of g.order) {
@@ -396,7 +396,13 @@ function buildTally(g, final) {
       const td = tr.insertCell();
       const e = cells.get(s);
       if (!e) continue;
-      if (e.f) { td.textContent = 'F'; td.className = 'f'; } else td.textContent = fmt(e.t);
+      td.textContent = fmt(e.t);
+      if (e.f) {
+        const f = document.createElement('span');
+        f.className = 'f';
+        f.textContent = 'F';
+        td.append(' ', f);
+      }
     }
   }
   if (final) {
