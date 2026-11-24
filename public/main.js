@@ -358,9 +358,71 @@ const setSize = (pct, save = true) => {
 setSize(store.get('diceSize') || 100, false);
 sizeInput.oninput = () => setSize(sizeInput.value);
 $('size-reset').onclick = () => setSize(100);
-$('btn-size').onclick = () => { $('size-pop').hidden = !$('size-pop').hidden; };
-// The size popover belongs to the game screen.
-function hideSizePop() { $('size-pop').hidden = true; }
+$('btn-size').onclick = () => { const open = $('size-pop').hidden; hideSizePop(); $('size-pop').hidden = !open; };
+// The popovers belong to the game screen; only one is open at a time.
+function hideSizePop() { $('size-pop').hidden = true; $('tally-pop').hidden = true; }
+
+// ----------------------------------------------------------- scoreboard --
+const initialOf = (seat) => ([...(room?.seats[seat]?.name ?? '').trim()][0] ?? '?').toUpperCase();
+
+// Turn-by-turn running scores: one row per round, one column per player.
+// A cell holds the player's total after that turn, or F if they farkled.
+function buildTally(g, final) {
+  const t = document.createElement('table');
+  t.className = 'tally';
+  const head = t.createTHead().insertRow();
+  head.insertCell().outerHTML = '<th class="rn">#</th>';
+  for (const s of g.order) {
+    const th = document.createElement('th');
+    const b = document.createElement('span');
+    b.className = 'badge';
+    b.style.setProperty('--c', SEAT_COLORS[s].hex);
+    b.textContent = initialOf(s);
+    th.title = nameOf(s);
+    th.append(b);
+    head.append(th);
+  }
+  const rounds = new Map();
+  for (const e of g.history) {
+    if (!rounds.has(e.r)) rounds.set(e.r, new Map());
+    rounds.get(e.r).set(e.s, e);
+  }
+  const body = t.createTBody();
+  for (const [r, cells] of [...rounds].sort((a, b) => a[0] - b[0])) {
+    const tr = body.insertRow();
+    if (r === g.round && g.phase !== 'over') tr.className = 'now';
+    tr.insertCell().outerHTML = `<td class="rn">${r}</td>`;
+    for (const s of g.order) {
+      const td = tr.insertCell();
+      const e = cells.get(s);
+      if (!e) continue;
+      if (e.f) { td.textContent = 'F'; td.className = 'f'; } else td.textContent = fmt(e.t);
+    }
+  }
+  if (final) {
+    const tr = t.createTFoot().insertRow();
+    tr.className = 'total';
+    tr.insertCell().outerHTML = '<td class="rn">Σ</td>';
+    for (const s of g.order) tr.insertCell().textContent = fmt(g.scores[s]);
+  }
+  return t;
+}
+
+function renderTally(g) {
+  if (!$('tally-pop').hidden) {
+    const box = $('tally-scroll');
+    const wasBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    box.replaceChildren(buildTally(g, g.phase === 'over'));
+    if (wasBottom) box.scrollTop = box.scrollHeight;
+  }
+}
+$('btn-tally').onclick = () => {
+  const open = $('tally-pop').hidden;
+  hideSizePop();
+  $('tally-pop').hidden = !open;
+  if (open && shown) { renderTally(shown); $('tally-scroll').scrollTop = $('tally-scroll').scrollHeight; }
+};
+$('tally-close').onclick = () => { $('tally-pop').hidden = true; };
 
 $('btn-sound').onclick = () => { sfx.muted = !sfx.muted; soundIcon(); };
 
@@ -393,6 +455,7 @@ async function present(next) {
   if (newRoll || turnChanged) sel = new Set();
   shown = g;
   renderPlayers(g);
+  renderTally(g);
 
   if (newRoll) {
     animating = true;
@@ -411,7 +474,7 @@ async function present(next) {
     view.set(g.slots, g.rollId);
   }
 
-  if (prev && g.last?.type === 'bank' && g.seq !== prev.seq) {
+  if (prev && g.last?.type === 'bank' && g.seq !== prev.seq && g.phase !== 'over') {
     toast(`${label(g.last.seat)} banked ${fmt(g.last.points)}!`, 'good', 1500);
     sfx.bank();
     if (isMine(g.last.seat)) buzz('LIGHT');
@@ -432,6 +495,9 @@ async function present(next) {
         li.append(document.createTextNode(nameOf(s)));
         ol.append(li);
       }
+      $('final-tally').replaceChildren(buildTally(g, true));
+      $('final-tally').scrollTop = $('final-tally').scrollHeight;
+      $('tally-pop').hidden = true;
       $('gameover-sub').textContent = room.you.isHost ? 'Head back to the lobby to play again.' : 'Waiting for the host to start another game.';
       $('again').hidden = !room.you.isHost;
       $('gameover').hidden = false;

@@ -97,6 +97,7 @@ export function newGameState(order, opts = {}) {
     seq: 0, // bumps on every state change; lets clients detect missed updates
     round: 1,
     final: null, // {trigger, pending: seats still owed a last turn}
+    history: [], // one entry per finished turn: {r: round, s: seat, f: farkled, t: running total}
     winner: null,
     last: null,
   };
@@ -175,6 +176,7 @@ export function applyPass(g) {
 
 function endTurn(g, banked) {
   const seat = g.turn;
+  g.history.push({ r: g.round, s: seat, f: !banked, t: g.scores[seat] });
   if (banked && !g.final && g.scores[seat] >= g.target) {
     g.final = { trigger: seat, pending: g.order.filter((s) => s !== seat) };
   } else if (g.final) {

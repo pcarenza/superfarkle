@@ -71,6 +71,7 @@
 
   <div id="toolbar" hidden>
     <button id="btn-chat" title="Chat">💬<span id="unread" hidden></span></button>
+    <button id="btn-tally" class="game-only" title="Scoreboard">📊</button>
     <button id="btn-size" class="game-only" title="Dice size">🎲</button>
     <button id="btn-sound" title="Sound on/off">🔊</button>
     <button data-open="rules" title="Rules">?</button>
@@ -86,6 +87,11 @@
   </aside>
   <div id="chat-peek" hidden></div>
 
+  <div id="tally-pop" class="card" hidden>
+    <header><span>Scoreboard</span><button id="tally-close" class="small ghost" title="Close">✕</button></header>
+    <div class="tally-scroll" id="tally-scroll"></div>
+  </div>
+
   <div id="size-pop" class="card" hidden>
     <label>Dice size <span id="size-val"></span>
       <input type="range" id="size" min="50" max="120" step="5" />
@@ -99,6 +105,7 @@
   <section id="gameover" class="panel card" hidden>
     <h2 id="winner"></h2>
     <ol id="final-scores"></ol>
+    <div class="tally-scroll" id="final-tally"></div>
     <p class="muted" id="gameover-sub"></p>
     <div class="row">
       <button id="again" class="primary">Back to lobby</button>

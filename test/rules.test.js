@@ -188,3 +188,15 @@ test('entry minimum can be turned off', () => {
   }
   assert.equal(bots.phase, 'over');
 });
+
+test('history records every turn with the running total, or a farkle', () => {
+  const g = newGameState([0, 1], { entry: 0 });
+  applyRoll(g, seq(1, 1, 1, 2, 3, 4)); applyKeep(g, [0, 1, 2], true, seq(1)); // seat 0 banks 1000
+  applyRoll(g, seq(2, 3, 4, 6, 6, 2)); applyPass(g); // seat 1 farkles
+  applyRoll(g, seq(5, 2, 3, 4, 6, 6)); applyKeep(g, [0], true, seq(1)); // round 2: seat 0 banks 50
+  assert.deepEqual(g.history, [
+    { r: 1, s: 0, f: false, t: 1000 },
+    { r: 1, s: 1, f: true, t: 0 },
+    { r: 2, s: 0, f: false, t: 1050 },
+  ]);
+});

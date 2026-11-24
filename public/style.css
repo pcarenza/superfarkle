@@ -146,3 +146,21 @@ label.check input { width: 18px; height: 18px; padding: 0; accent-color: var(--a
 #size-pop label { flex: 1; }
 #size-pop input[type=range] { padding: 0; accent-color: var(--accent); }
 @media (max-width: 720px) { #size-pop { top: calc(52px + env(safe-area-inset-top)); right: 8px; } }
+
+#tally-pop { position: fixed; top: calc(60px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); z-index: 6;
+  padding: 8px; width: min(380px, calc(100vw - 24px)); max-height: min(60vh, 460px); display: flex; flex-direction: column; gap: 6px; }
+#tally-pop header { display: flex; justify-content: space-between; align-items: center; padding: 0 2px 0 6px; color: var(--accent); }
+.tally-scroll { overflow: auto; min-height: 0; }
+#final-tally { max-height: 34vh; border: 1px solid var(--card-edge); border-radius: 8px; }
+table.tally { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 14px; text-align: right; }
+table.tally th, table.tally td { padding: 4px 8px; border-bottom: 1px solid var(--card-edge); }
+table.tally thead th { position: sticky; top: 0; background: #12281d; z-index: 1; text-align: center; }
+table.tally th.rn, table.tally td.rn { text-align: left; color: var(--muted); width: 2.2em; }
+table.tally .badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--c); color: #fff; font: bold 13px/1 system-ui, sans-serif; text-shadow: 0 1px 1px rgba(0,0,0,.5); }
+table.tally td.f { color: var(--danger); font-weight: bold; text-align: center; }
+table.tally tr.now td { background: rgba(240,194,74,.08); }
+table.tally tr.total td { border-top: 2px solid var(--accent); font-weight: bold; color: var(--accent); }
+table.tally tr.total td.rn { color: var(--accent); }
+@media (max-width: 720px) { #tally-pop { top: calc(52px + env(safe-area-inset-top)); right: 8px; } }
+table.tally tfoot td { position: sticky; bottom: 0; background: #12281d; }
