@@ -66,5 +66,7 @@ export const sfx = {
   farkle() { tone(220, 0.55, 'sawtooth', 0.14, 0, 90); tone(165, 0.6, 'square', 0.07, 0.05, 70); },
   hot() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.2, 'triangle', 0.14, i * 0.06)); },
   chime() { [523, 659, 784, 1047, 1318].forEach((f, i) => tone(f, 0.6, 'sine', 0.16, i * 0.12)); },
+  // A soft two-note chime when someone joins the room.
+  join() { tone(660, 0.18, 'sine', 0.12); tone(880, 0.28, 'sine', 0.12, 0.1); },
   pop() { tone(700, 0.08, 'sine', 0.12, 0, 1100); },
 };

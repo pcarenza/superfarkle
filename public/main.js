@@ -111,6 +111,8 @@ function leave() {
   store.set('room', null);
   history.replaceState(null, '', location.pathname);
   room = null;
+  people = null;
+  seenNames.clear();
   shown = null;
   queue.length = 0;
   sel = new Set();
@@ -584,8 +586,31 @@ async function present(next) {
   }
 }
 
+// Tell the player when someone new joins (or comes back to) the room.
+let people = null; // names currently here; null until we have seen the room once
+const seenNames = new Set();
+function announceArrivals(r) {
+  const now = new Set();
+  r.seats.forEach((s, i) => { if (s && !s.bot && s.connected && i !== r.you.seat) now.add(s.name); });
+  for (const n of r.spectators) if (n !== r.you.name) now.add(n);
+  if (people) {
+    for (const n of now) {
+      if (people.has(n)) continue;
+      const back = seenNames.has(n);
+      const watching = r.game && !r.seats.some((s) => s && s.name === n);
+      toast(back ? `${n} is back` : watching ? `${n} is watching` : `${n} joined`, 'good', 1800);
+      sfx.join();
+      buzz('LIGHT');
+      break; // one alert per update is plenty
+    }
+  }
+  for (const n of now) seenNames.add(n);
+  people = now;
+}
+
 socket.on('room', (r) => {
   if (!wantRoom) return; // we left
+  announceArrivals(r);
   queue.push(r);
   pump();
 });
