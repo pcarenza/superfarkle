@@ -251,6 +251,7 @@ function renderSwatches() {
     const b = document.createElement('button');
     b.className = 'sw' + (c.hex === mineHex ? ' mine' : holder !== -1 ? ' taken' : '');
     b.style.setProperty('--c', c.hex);
+    b.style.setProperty('--ink', inkOf(c.hex));
     b.disabled = holder !== -1 && c.hex !== mineHex;
     b.title = holder === -1 || c.hex === mineHex ? c.name : `${c.name} — taken by ${room.seats[holder].name}`;
     b.setAttribute('aria-label', b.title);
@@ -273,6 +274,12 @@ function btn(label, fn) {
 // ------------------------------------------------------------------ game --
 const nameOf = (seat) => room?.seats[seat]?.name ?? `Player ${seat + 1}`;
 const hexOf = (seat) => room?.seats[seat]?.color?.hex ?? '#888';
+// Readable text colour on top of a player colour (dark on light colours like White or Lime).
+const inkOf = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  const lum = (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return lum > 0.6 ? '#1b1b1b' : '#fff';
+};
 const isMine = (seat) => room && room.you.seat === seat;
 const label = (seat) => (isMine(seat) ? 'You' : nameOf(seat));
 const blankSlots = () => Array.from({ length: 6 }, () => ({ v: 0, kept: false }));
@@ -418,6 +425,8 @@ function buildTally(g, final) {
     const b = document.createElement('span');
     b.className = 'badge';
     b.style.setProperty('--c', hexOf(s));
+    b.style.color = inkOf(hexOf(s));
+    b.style.textShadow = inkOf(hexOf(s)) === '#fff' ? '' : 'none';
     b.textContent = initialOf(s);
     th.title = nameOf(s);
     th.append(b);
@@ -485,6 +494,7 @@ async function present(next) {
     sel = new Set();
     $('gameover').hidden = true;
     view.set(blankSlots(), 0);
+    view.setDiceColor('#f3eee2');
     view.setSelection(sel, null, false);
     renderRulesTable(next.options.scoring);
     $('rule-entry').hidden = !next.options.entry;
@@ -494,6 +504,7 @@ async function present(next) {
   }
 
   screen('game');
+  view.setDiceColor(hexOf(g.turn));
   renderRulesTable(g.scoring);
   $('rule-entry').hidden = !g.entry;
   pending = false;

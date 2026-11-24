@@ -15,7 +15,7 @@ const PIPS = {
 const UP = new THREE.Vector3(0, 1, 0);
 const WHITE = new THREE.Color(0xffffff);
 const DIM = new THREE.Color(0x6e6a60);
-const KEPT = new THREE.Color(0xe9dfc2);
+const KEPT = new THREE.Color(0xd9d6cc);
 
 // Small deterministic generator so every client lays out a roll identically.
 function rng(seed) {
@@ -23,21 +23,36 @@ function rng(seed) {
   return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
 }
 
-function faceTexture(v) {
+// Dice look: ivory with dark pips (and a red one) for White, otherwise a body in
+// the player's colour with white pips.
+const mix = (hex, other, t) => {
+  const a = new THREE.Color(hex), b = new THREE.Color(other);
+  return `#${a.lerp(b, t).getHexString()}`;
+};
+const lightness = (hex) => { const c = new THREE.Color(hex); return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; };
+function diceStyle(hex) {
+  if (lightness(hex) > 0.8) { // white / ivory
+    return { body: ['#fffaf0', '#eadfc4'], pip: ['#3a332c', '#0d0b09'], one: ['#e24b3c', '#a31d14'] };
+  }
+  return { body: [mix(hex, '#000000', 0.12), mix(hex, '#000000', 0.42)], pip: ['#ffffff', '#e4e0d6'], one: ['#ffffff', '#e4e0d6'] };
+}
+
+function faceTexture(v, style) {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const g = c.getContext('2d');
   const bg = g.createRadialGradient(100, 90, 20, 128, 128, 190);
-  bg.addColorStop(0, '#fffaf0');
-  bg.addColorStop(1, '#e9dcc0');
+  bg.addColorStop(0, style.body[0]);
+  bg.addColorStop(1, style.body[1]);
   g.fillStyle = bg;
   g.fillRect(0, 0, 256, 256);
   const r = v === 1 ? 40 : 25;
   for (const [x, y] of PIPS[v]) {
     const px = 64 + x * 64, py = 64 + y * 64;
+    const [p0, p1] = v === 1 ? style.one : style.pip;
     const grad = g.createRadialGradient(px - 6, py - 6, 2, px, py, r);
-    if (v === 1) { grad.addColorStop(0, '#e24b3c'); grad.addColorStop(1, '#a31d14'); }
-    else { grad.addColorStop(0, '#3a332c'); grad.addColorStop(1, '#0d0b09'); }
+    grad.addColorStop(0, p0);
+    grad.addColorStop(1, p1);
     g.fillStyle = grad;
     g.beginPath();
     g.arc(v === 1 ? 128 : px, v === 1 ? 128 : py, r, 0, Math.PI * 2);
@@ -47,6 +62,15 @@ function faceTexture(v) {
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   return t;
+}
+
+const textureCache = new Map(); // hex -> {1..6: texture}
+function diceTextures(hex) {
+  if (!textureCache.has(hex)) {
+    const style = diceStyle(hex);
+    textureCache.set(hex, Object.fromEntries([1, 2, 3, 4, 5, 6].map((v) => [v, faceTexture(v, style)])));
+  }
+  return textureCache.get(hex);
 }
 
 function feltTexture() {
@@ -112,8 +136,8 @@ export class DiceView {
     this.scene.add(felt);
 
     const geo = new RoundedBoxGeometry(1, 1, 1, 5, 0.13);
-    const faces = [1, 2, 3, 4, 5, 6].map((v) => [v, faceTexture(v)]);
-    const texOf = Object.fromEntries(faces);
+    this.diceHex = '#f3eee2';
+    const texOf = diceTextures(this.diceHex);
     this.dice = Array.from({ length: N }, (_, slot) => {
       const mats = GROUP_FACE.map((v) => new THREE.MeshStandardMaterial({ map: texOf[v], roughness: 0.32, metalness: 0, emissive: 0x000000 }));
       const mesh = new THREE.Mesh(geo, mats);
@@ -138,6 +162,14 @@ export class DiceView {
     this.layout(this.state.slots, 0);
     for (const d of this.dice) { d.mesh.position.copy(d.target.pos); d.mesh.quaternion.copy(d.target.quat); }
     this.renderer.setAnimationLoop(() => this.#frame());
+  }
+
+  /** Re-skin the dice in a player's colour (a hex string). */
+  setDiceColor(hex) {
+    if (hex === this.diceHex) return;
+    this.diceHex = hex;
+    const tex = diceTextures(hex);
+    for (const d of this.dice) d.mats.forEach((m, gi) => { m.map = tex[GROUP_FACE[gi]]; });
   }
 
   setInsets(top, bottom) {

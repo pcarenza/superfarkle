@@ -6,6 +6,7 @@ export const DEFAULT_TARGET = 10000;
 export const ENTRY_SCORE = 500; // minimum turn total needed to "get on the board"
 
 // Player colors: each player picks one, and no two players share a color.
+// The dice take the color of the player whose turn it is.
 export const COLORS = [
   { name: 'Crimson', hex: '#e0443a' },
   { name: 'Azure', hex: '#3d8ee6' },
@@ -17,6 +18,7 @@ export const COLORS = [
   { name: 'Orange', hex: '#f07a2a' },
   { name: 'Lime', hex: '#8fc02f' },
   { name: 'Brown', hex: '#a0693f' },
+  { name: 'White', hex: '#f3eee2' }, // classic ivory dice
 ];
 
 // Scoring rule sets. Everything except three/four/five/six of a kind is shared:

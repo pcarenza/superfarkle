@@ -200,3 +200,11 @@ test('history records every turn with the running total, or a farkle', () => {
     { r: 2, s: 0, f: false, t: 1050 },
   ]);
 });
+
+test('player colors are unique and include classic white', async () => {
+  const { COLORS } = await import('../shared/config.js');
+  assert.equal(new Set(COLORS.map((c) => c.hex)).size, COLORS.length);
+  assert.equal(new Set(COLORS.map((c) => c.name)).size, COLORS.length);
+  assert.ok(COLORS.some((c) => c.name === 'White'));
+  assert.ok(COLORS.length >= 6, 'enough colors for every seat');
+});

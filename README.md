@@ -10,7 +10,7 @@ a Node/socket.io server that owns the rules, a three.js client, and a
   plays for them until they come back (refreshing the page reconnects you).
 - The server is authoritative: it rolls the dice and validates every selection.
   Clients only animate the result, so everyone sees the same roll.
-- Pick your own color from 10 in the lobby (no two players can share one); your choice is remembered.
+- Pick your own color from 11 in the lobby (no two players can share one); your choice is remembered. The dice take the color of whoever is rolling, and White gives the classic ivory dice.
 - Chat with quick reactions in the lobby and during the game.
 
 ## Running it
