@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Super Farkle</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='3' y='3' width='26' height='26' rx='6' fill='%23f6ecd2'/><circle cx='16' cy='16' r='4.5' fill='%23c8281c'/></svg>" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    { "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/addons/" } }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <!-- Welcome -->
+  <section id="welcome" class="panel card" hidden>
+    <h1>Super Farkle</h1>
+    <p class="sub">Roll the dice, push your luck, don't farkle. 2–6 players.</p>
+    <label>Your name <input id="name" maxlength="20" autocomplete="nickname" placeholder="e.g. Lucky Lou" /></label>
+    <button id="create" class="primary">Create a new game</button>
+    <div class="or"><span>or join a friend</span></div>
+    <div class="row">
+      <input id="code" maxlength="4" placeholder="CODE" autocapitalize="characters" />
+      <button id="join">Join</button>
+    </div>
+    <p id="conn" class="muted"></p>
+    <p id="welcome-error" class="error"></p>
+    <button class="link" data-open="rules">How to play</button>
+  </section>
+
+  <!-- Lobby -->
+  <section id="lobby" class="panel card" hidden>
+    <div class="code-line">
+      <div>
+        <div class="label">Room code</div>
+        <div id="room-code" class="big-code"></div>
+      </div>
+      <button id="copy-link" title="Copy invite link">Copy invite link</button>
+    </div>
+    <ul id="seats"></ul>
+    <label id="target-line">Play to
+      <select id="target"></select>
+    </label>
+    <p id="spectators" class="muted"></p>
+    <p id="lobby-hint" class="muted"></p>
+    <div class="row">
+      <button id="start" class="primary">Start game</button>
+      <button id="leave" class="ghost">Leave</button>
+    </div>
+    <p id="lobby-error" class="error"></p>
+    <button class="link" data-open="rules">How to play</button>
+  </section>
+
+  <!-- In-game HUD -->
+  <div id="hud" hidden>
+    <div id="players" class="card"></div>
+    <div id="controls" class="card">
+      <div id="status">…</div>
+      <div id="tally"></div>
+      <div id="buttons" class="row">
+        <button id="roll" class="primary">Roll</button>
+        <button id="again-roll" class="primary">Keep &amp; roll</button>
+        <button id="bank" class="bank">Keep &amp; bank</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toolbar" hidden>
+    <button id="btn-chat" title="Chat">💬<span id="unread" hidden></span></button>
+    <button id="btn-sound" title="Sound on/off">🔊</button>
+    <button data-open="rules" title="Rules">?</button>
+    <button id="btn-quit" class="game-only" title="Leave game">✕</button>
+  </div>
+
+  <!-- Chat (lobby and game) -->
+  <aside id="chatbox" class="card" hidden aria-label="Chat">
+    <header><span>Chat</span><button id="chat-close" class="small ghost" title="Hide chat">—</button></header>
+    <div id="log" aria-live="polite"></div>
+    <div id="reactions"></div>
+    <form id="chat-form"><input id="chat" maxlength="200" placeholder="Say something…" autocomplete="off" enterkeyhint="send" /><button class="small primary">Send</button></form>
+  </aside>
+  <div id="chat-peek" hidden></div>
+
+  <div id="toast"></div>
+
+  <!-- Game over -->
+  <section id="gameover" class="panel card" hidden>
+    <h2 id="winner"></h2>
+    <ol id="final-scores"></ol>
+    <p class="muted" id="gameover-sub"></p>
+    <div class="row">
+      <button id="again" class="primary">Back to lobby</button>
+      <button id="gameover-close" class="ghost">Look at the table</button>
+    </div>
+  </section>
+
+  <!-- Rules -->
+  <dialog id="rules" class="card">
+    <h2>How to play</h2>
+    <ol>
+      <li><b>Goal:</b> be the first to bank the target score (10,000 or 5,000). When someone gets there, everyone else gets <b>one last turn</b> to beat them.</li>
+      <li><b>Your turn:</b> roll all six dice. Tap the dice that score to keep them, then either <b>roll the rest</b> or <b>bank</b> your points.</li>
+      <li><b>Farkle!</b> If a roll has no scoring dice, you lose everything you scored this turn.</li>
+      <li><b>Hot dice:</b> score with all six dice and you get to roll all six again.</li>
+      <li><b>Getting on the board:</b> your first banked turn must total at least 500.</li>
+      <li>Every die you keep must score.</li>
+    </ol>
+    <table class="scoring">
+      <tr><td>Single 1</td><td>100</td><td>Straight 1–6</td><td>1,500</td></tr>
+      <tr><td>Single 5</td><td>50</td><td>Three pairs</td><td>1,500</td></tr>
+      <tr><td>Three 1s</td><td>1,000</td><td>Four of a kind + pair</td><td>1,500</td></tr>
+      <tr><td>Three 2s–6s</td><td>200–600</td><td>Two triplets</td><td>2,500</td></tr>
+      <tr><td>Four of a kind</td><td>1,000</td><td>Five of a kind</td><td>2,000</td></tr>
+      <tr><td>Six of a kind</td><td>3,000</td><td></td><td></td></tr>
+    </table>
+    <p class="muted">Tap a die to select it. Press <kbd>Space</kbd> to roll.</p>
+    <form method="dialog"><button class="primary">Got it</button></form>
+  </dialog>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

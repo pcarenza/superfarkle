@@ -1,0 +1,8 @@
+{
+  "appId": "com.pcarenza.superfarkle",
+  "appName": "Super Farkle",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#0f2a1c"
+  }
+}
