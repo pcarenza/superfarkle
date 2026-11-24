@@ -97,17 +97,29 @@ layers and phone screenshots. The privacy policy page is `public/privacy.html`
 ## Voice chat setup
 
 Voice works out of the box between most players using a free public STUN server.
-Players on strict networks (some mobile carriers, offices, schools) need a TURN
-relay to connect. Add one by setting the `ICE_SERVERS` environment variable on the
-server (in Render: your service → Environment) to a JSON list, for example:
+Players on strict networks (some mobile carriers, offices, schools) also need a TURN
+relay. Two ways to add one (both optional; set them in Render under your service ->
+Environment, never in the repo):
+
+**Cloudflare Realtime TURN** (free for the first 1,000 GB/month, far more than voice needs):
+
+1. Cloudflare dashboard -> Realtime -> TURN -> create a TURN key.
+2. Copy its **Key ID** and **API token** (the token is shown once).
+3. In Render add `CF_TURN_KEY_ID` and `CF_TURN_API_TOKEN`, then save (it redeploys).
+
+The server asks Cloudflare for short-lived relay credentials when someone joins voice
+(`POST /v1/turn/keys/<key id>/credentials/generate-ice-servers`, cached for 6 hours) and
+falls back to STUN only, logging the reason, if that fails. After the first voice join,
+the Render logs show `Cloudflare TURN: credentials fetched`.
+
+**Any other TURN server**:
 
 ```
 ICE_SERVERS=[{"urls":"turn:turn.example.com:3478","username":"USER","credential":"SECRET"}]
 ```
 
-Hosted TURN services (e.g. Metered, Twilio, Cloudflare Calls) offer free or cheap
-tiers. Up to 8 people can be in a room's voice chat at once (a full mesh: each
-device connects to every other, which is fine for audio).
+Up to 8 people can be in a room's voice chat at once (a full mesh: each device connects
+to every other, which is fine for audio).
 
 The Android app declares the `RECORD_AUDIO` permission and asks for it only when a
 player taps Join voice. The privacy policy (`public/privacy.html`) describes voice

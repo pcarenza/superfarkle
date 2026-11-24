@@ -20,18 +20,55 @@ const http = createServer(app);
 const io = new Server(http, { cors: { origin: ['https://localhost', 'http://localhost', 'capacitor://localhost'] } });
 
 // Voice chat connects players directly (WebRTC). STUN helps them find each other;
-// players behind strict networks also need a TURN relay. Provide one with
-//   ICE_SERVERS='[{"urls":"turn:turn.example.com:3478","username":"u","credential":"p"}]'
-// (it is added to the default STUN server).
+// players behind strict networks also need a TURN relay. Two ways to add one:
+//
+//  1. Cloudflare Realtime TURN: set CF_TURN_KEY_ID and CF_TURN_API_TOKEN. The server
+//     asks Cloudflare for short-lived relay credentials and hands them to players.
+//  2. Any other TURN server: ICE_SERVERS='[{"urls":"turn:host:3478","username":"u","credential":"p"}]'
+//
+// Both are optional and are added to the default public STUN server.
 const DEFAULT_ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
-function iceServers() {
+const CF_KEY = process.env.CF_TURN_KEY_ID || '';
+const CF_TOKEN = process.env.CF_TURN_API_TOKEN || '';
+const CF_BASE = (process.env.CF_TURN_API_BASE || 'https://rtc.live.cloudflare.com').replace(/\/+$/, '');
+const CF_TTL = 24 * 60 * 60; // lifetime of the credentials we request (seconds)
+let cfCache = null; // {servers, expires}
+
+async function cloudflareIce() {
+  if (!CF_KEY || !CF_TOKEN) return [];
+  if (cfCache && cfCache.expires > Date.now()) return cfCache.servers;
   try {
-    const extra = JSON.parse(process.env.ICE_SERVERS || '[]');
-    return [...DEFAULT_ICE, ...(Array.isArray(extra) ? extra : [])];
-  } catch {
-    console.warn('ICE_SERVERS is not valid JSON; using STUN only');
-    return DEFAULT_ICE;
+    const res = await fetch(`${CF_BASE}/v1/turn/keys/${encodeURIComponent(CF_KEY)}/credentials/generate-ice-servers`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${CF_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ttl: CF_TTL }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const list = data?.iceServers;
+    // Accept either a list of servers or a single server object.
+    const servers = (Array.isArray(list) ? list : list ? [list] : []).filter((x) => x && x.urls);
+    if (!servers.length) throw new Error('no iceServers in the response');
+    if (!cfCache) console.log(`Cloudflare TURN: credentials fetched (${servers.length} server entr${servers.length === 1 ? 'y' : 'ies'})`);
+    cfCache = { servers, expires: Date.now() + 6 * 60 * 60 * 1000 }; // refresh well before they expire
+    return servers;
+  } catch (e) {
+    console.warn(`Cloudflare TURN: could not get credentials (${e.message}); using STUN only`);
+    cfCache = { servers: [], expires: Date.now() + 60 * 1000 }; // don't hammer the API; try again in a minute
+    return [];
   }
+}
+
+async function iceServers() {
+  let extra = [];
+  try {
+    const parsed = JSON.parse(process.env.ICE_SERVERS || '[]');
+    if (Array.isArray(parsed)) extra = parsed;
+  } catch {
+    console.warn('ICE_SERVERS is not valid JSON; ignoring it');
+  }
+  return [...DEFAULT_ICE, ...(await cloudflareIce()), ...extra];
 }
 const MAX_VOICE = 8;
 
@@ -406,15 +443,17 @@ io.on('connection', (socket) => {
   // relays the connection setup messages.
   let myVoiceId = null;
   const signalTimes = [];
-  socket.on('voiceJoin', (_, ack) => {
+  socket.on('voiceJoin', async (_, ack) => {
     if (!room) return fail(ack, 'Join a room first.');
-    if (myVoiceId && room.voice.has(myVoiceId)) room.voice.delete(myVoiceId);
-    if (room.voice.size >= MAX_VOICE) return fail(ack, 'Voice chat is full.');
-    const others = room.voiceMembers();
+    const ice = await iceServers(); // may take a moment the first time (relay credentials)
+    const r = room;
+    if (!r || r.voice.size >= MAX_VOICE && !(myVoiceId && r.voice.has(myVoiceId))) return fail(ack, r ? 'Voice chat is full.' : 'Join a room first.');
+    if (myVoiceId && r.voice.has(myVoiceId)) r.voice.delete(myVoiceId);
+    const others = r.voiceMembers();
     myVoiceId = randomBytes(6).toString('hex');
-    room.voice.set(myVoiceId, { socketId: socket.id, token, muted: false });
-    room.broadcastVoice();
-    ok(ack, { id: myVoiceId, ice: iceServers(), members: others });
+    r.voice.set(myVoiceId, { socketId: socket.id, token, muted: false });
+    r.broadcastVoice();
+    ok(ack, { id: myVoiceId, ice, members: others });
   });
 
   socket.on('voiceLeave', (_, ack) => {
