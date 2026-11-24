@@ -101,7 +101,7 @@ Players on strict networks (some mobile carriers, offices, schools) also need a 
 relay. Two ways to add one (both optional; set them in Render under your service ->
 Environment, never in the repo):
 
-**Cloudflare Realtime TURN** (free for the first 1,000 GB/month, far more than voice needs):
+**Cloudflare Realtime TURN** (check Cloudflare's current pricing and plan requirements; it may need a paid account):
 
 1. Cloudflare dashboard -> Realtime -> TURN -> create a TURN key.
 2. Copy its **Key ID** and **API token** (the token is shown once).
