@@ -39,9 +39,11 @@
       <button id="copy-link" title="Copy invite link">Copy invite link</button>
     </div>
     <ul id="seats"></ul>
-    <label id="target-line">Play to
-      <select id="target"></select>
-    </label>
+    <div class="row">
+      <label>Play to <select id="target"></select></label>
+      <label>Scoring <select id="scoring"></select></label>
+    </div>
+    <p id="scoring-blurb" class="muted"></p>
     <p id="spectators" class="muted"></p>
     <p id="lobby-hint" class="muted"></p>
     <div class="row">
@@ -104,16 +106,10 @@
       <li><b>Farkle!</b> If a roll has no scoring dice, you lose everything you scored this turn.</li>
       <li><b>Hot dice:</b> score with all six dice and you get to roll all six again.</li>
       <li><b>Getting on the board:</b> your first banked turn must total at least 500.</li>
-      <li>Every die you keep must score.</li>
+      <li>Every die you keep must score. The host picks the scoring rules in the lobby; this table shows the ones for your game.</li>
     </ol>
-    <table class="scoring">
-      <tr><td>Single 1</td><td>100</td><td>Straight 1–6</td><td>1,500</td></tr>
-      <tr><td>Single 5</td><td>50</td><td>Three pairs</td><td>1,500</td></tr>
-      <tr><td>Three 1s</td><td>1,000</td><td>Four of a kind + pair</td><td>1,500</td></tr>
-      <tr><td>Three 2s–6s</td><td>200–600</td><td>Two triplets</td><td>2,500</td></tr>
-      <tr><td>Four of a kind</td><td>1,000</td><td>Five of a kind</td><td>2,000</td></tr>
-      <tr><td>Six of a kind</td><td>3,000</td><td></td><td></td></tr>
-    </table>
+    <h3 id="rules-scoring-title"></h3>
+    <table class="scoring" id="rules-table"></table>
     <p class="muted">Tap a die to select it. Press <kbd>Space</kbd> to roll.</p>
     <form method="dialog"><button class="primary">Got it</button></form>
   </dialog>

@@ -134,3 +134,39 @@ test('bot plays legal actions to the end of a game', () => {
   assert.equal(g.phase, 'over');
   assert.ok(g.scores[g.winner] >= 2000);
 });
+
+test('classic scoring: four/five/six of a kind are 2x/3x/4x the triple', () => {
+  const s = (v) => scoreDice(v, 'classic');
+  assert.equal(s([3, 3, 3]), 300);
+  assert.equal(s([3, 3, 3, 3]), 600);
+  assert.equal(s([3, 3, 3, 3, 3]), 900);
+  assert.equal(s([3, 3, 3, 3, 3, 3]), 1200);
+  assert.equal(s([1, 1, 1]), 1000);
+  assert.equal(s([1, 1, 1, 1]), 2000);
+  assert.equal(s([1, 1, 1, 1, 1]), 3000);
+  assert.equal(s([1, 1, 1, 1, 1, 1]), 4000);
+  assert.equal(s([5, 5, 5, 5]), 1000);
+  assert.equal(s([1, 2, 3, 4, 5, 6]), 1500);
+  assert.equal(s([2, 2, 2, 6, 6, 6]), 2500);
+});
+
+test('Farkle 2.0 scoring: three 1s = 300, fixed four/five/six of a kind', () => {
+  const s = (v) => scoreDice(v, 'v2');
+  assert.equal(s([1, 1, 1]), 300);
+  assert.equal(s([1, 1, 1, 1]), 1000);
+  assert.equal(s([1, 1, 1, 1, 1]), 2000);
+  assert.equal(s([1, 1, 1, 1, 1, 1]), 3000);
+  assert.equal(s([4, 4, 4]), 400);
+  assert.equal(s([4, 4, 4, 4]), 1000);
+  assert.equal(s([2, 2, 2, 1]), 300);
+});
+
+test('hybrid is the default and games remember their scoring mode', () => {
+  assert.equal(scoreDice([1, 1, 1]), 1000);
+  assert.equal(newGameState([0, 1]).scoring, 'hybrid');
+  assert.equal(newGameState([0, 1], { scoring: 'classic' }).scoring, 'classic');
+  assert.equal(newGameState([0, 1], { scoring: 'bogus' }).scoring, 'hybrid');
+  const g = newGameState([0, 1], { scoring: 'v2' });
+  applyRoll(g, seq(1, 1, 1, 2, 3, 4));
+  assert.equal(checkKeep(g, [0, 1, 2], false).score, 300);
+});

@@ -1,5 +1,5 @@
 import { DiceView } from './scene.js';
-import { SEAT_COLORS, TARGETS } from '/shared/config.js';
+import { SEAT_COLORS, TARGETS, SCORING, SCORING_MODES, DEFAULT_SCORING } from '/shared/config.js';
 import { scoreDice, usableDice } from '/shared/rules.js';
 import { sfx } from './sfx.js';
 
@@ -158,6 +158,26 @@ $('again').onclick = () => emit('backToLobby');
 $('gameover-close').onclick = () => { gameoverDismissed = true; $('gameover').hidden = true; };
 for (const t of TARGETS) $('target').add(new Option(t.toLocaleString(), t));
 $('target').onchange = () => emit('setOptions', { target: Number($('target').value) }, $('lobby-error'));
+for (const m of SCORING_MODES) $('scoring').add(new Option(SCORING[m].name, m));
+$('scoring').onchange = () => emit('setOptions', { scoring: $('scoring').value }, $('lobby-error'));
+
+// The rules dialog shows the scoring table for the current game (or the default).
+function renderRulesTable(mode) {
+  const rs = SCORING[mode] ?? SCORING[DEFAULT_SCORING];
+  $('rules-scoring-title').textContent = `Scoring: ${rs.name}`;
+  const t = $('rules-table');
+  t.replaceChildren();
+  for (let i = 0; i < rs.rows.length; i += 2) {
+    const tr = document.createElement('tr');
+    for (const [a, b] of [rs.rows[i], rs.rows[i + 1] ?? ['', '']]) {
+      const td1 = document.createElement('td'); td1.textContent = a;
+      const td2 = document.createElement('td'); td2.textContent = b;
+      tr.append(td1, td2);
+    }
+    t.append(tr);
+  }
+}
+renderRulesTable(DEFAULT_SCORING);
 
 function renderLobby() {
   const you = room.you;
@@ -187,7 +207,9 @@ function renderLobby() {
     ul.append(li);
   });
   $('target').value = room.options.target;
-  $('target').disabled = !you.isHost;
+  $('scoring').value = room.options.scoring;
+  $('target').disabled = $('scoring').disabled = !you.isHost;
+  $('scoring-blurb').textContent = SCORING[room.options.scoring].blurb;
   $('spectators').textContent = room.spectators.length ? `Watching: ${room.spectators.join(', ')}` : '';
   const seated = room.seats.filter(Boolean).length;
   $('start').hidden = !you.isHost;
@@ -229,7 +251,7 @@ function renderPlayers(g) {
 }
 
 function selScore(g) {
-  return scoreDice([...sel].map((i) => g.slots[i].v));
+  return scoreDice([...sel].map((i) => g.slots[i].v), g.scoring);
 }
 
 function renderControls() {
@@ -283,7 +305,7 @@ function applySelection() {
   let usable = null;
   if (g.phase === 'select' || g.phase === 'farkle') {
     usable = g.slots.map(() => true);
-    const u = usableDice(free.map((i) => g.slots[i].v));
+    const u = usableDice(free.map((i) => g.slots[i].v), g.scoring);
     free.forEach((slot, k) => (usable[slot] = u[k]));
   }
   view.setSelection(sel, usable, isMine(g.turn) && g.phase === 'select' && !animating && !pending);
@@ -336,12 +358,14 @@ async function present(next) {
     $('gameover').hidden = true;
     view.set(blankSlots(), 0);
     view.setSelection(sel, null, false);
+    renderRulesTable(next.options.scoring);
     renderLobby();
     screen('lobby');
     return;
   }
 
   screen('game');
+  renderRulesTable(g.scoring);
   pending = false;
   const newRoll = prev && g.rollId > prev.rollId;
   const turnChanged = !prev || prev.turn !== g.turn || prev.round !== g.round;

@@ -4,7 +4,7 @@ import { Server } from 'socket.io';
 import { randomInt, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { MAX_SEATS, SEAT_COLORS, TARGETS, DEFAULT_TARGET } from './shared/config.js';
+import { MAX_SEATS, SEAT_COLORS, TARGETS, DEFAULT_TARGET, SCORING, DEFAULT_SCORING } from './shared/config.js';
 import { newGameState, applyRoll, applyKeep, applyPass, chooseBotAction } from './shared/rules.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +45,7 @@ class Room {
     this.seats = Array(MAX_SEATS).fill(null); // {token, name, bot}
     this.host = null;
     this.game = null;
-    this.options = { target: DEFAULT_TARGET };
+    this.options = { target: DEFAULT_TARGET, scoring: DEFAULT_SCORING };
     this.timer = null;
     this.chat = [];
     this.chatId = 0;
@@ -254,10 +254,16 @@ io.on('connection', (socket) => {
     ok(ack);
   });
 
-  socket.on('setOptions', ({ target } = {}, ack) => {
+  socket.on('setOptions', ({ target, scoring } = {}, ack) => {
     if (!inLobby() || !isHost()) return fail(ack, 'Only the host can change the rules.');
-    if (!TARGETS.includes(target)) return fail(ack, 'Unknown target score.');
-    room.options.target = target;
+    if (target !== undefined) {
+      if (!TARGETS.includes(target)) return fail(ack, 'Unknown target score.');
+      room.options.target = target;
+    }
+    if (scoring !== undefined) {
+      if (!Object.hasOwn(SCORING, scoring)) return fail(ack, 'Unknown scoring rules.');
+      room.options.scoring = scoring;
+    }
     room.broadcast();
     ok(ack);
   });
@@ -267,7 +273,7 @@ io.on('connection', (socket) => {
     const seated = room.seats.map((s, i) => (s ? i : -1)).filter((i) => i !== -1);
     if (seated.length < 2) return fail(ack, 'Need at least 2 players.');
     room.game = newGameState(seated, room.options);
-    room.addChat(null, `Game started! First to ${room.options.target} wins.`, true);
+    room.addChat(null, `Game started! ${SCORING[room.options.scoring].name} scoring, first to ${room.options.target} wins.`, true);
     room.after();
     ok(ack);
   });

@@ -64,13 +64,14 @@ and publishes it as **superfarkle.apk** on the `android-latest` release.
 - First to the target (10,000 or 5,000, chosen by the host) triggers a final
   round: everyone else gets one more turn to beat them.
 
-| Dice | Points | Dice | Points |
-|---|---|---|---|
-| Single 1 | 100 | Straight 1–6 | 1,500 |
-| Single 5 | 50 | Three pairs | 1,500 |
-| Three 1s | 1,000 | Four of a kind + pair | 1,500 |
-| Three 2s–6s | 200–600 | Two triplets | 2,500 |
-| Four of a kind | 1,000 | Five of a kind | 2,000 |
-| Six of a kind | 3,000 | | |
+The host picks the scoring rules in the lobby. Everything below is shared:
+single 1 = 100, single 5 = 50, straight 1–6 = 1,500, three pairs = 1,500,
+four of a kind + a pair = 1,500, two triplets = 2,500, three 2s–6s = 200–600.
 
-Scoring and options live in `shared/rules.js` and `shared/config.js`.
+| Rule set | Three 1s | Four / five / six of a kind |
+|---|---|---|
+| **Hybrid** (default) | 1,000 | 1,000 / 2,000 / 3,000 |
+| **Classic** | 1,000 | 2x / 3x / 4x the triple (four 1s = 2,000, four 4s = 800) |
+| **Farkle 2.0** | 300 | 1,000 / 2,000 / 3,000 |
+
+Rule sets live in `shared/config.js` (`SCORING`); the engine is `shared/rules.js`.
