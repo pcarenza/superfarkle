@@ -96,7 +96,8 @@ Reports are written to the server log as a single `[REPORT]` line (reason, optio
 the last 10 chat messages, and both players' names and anonymous IDs). Read them in Render:
 your service -> Logs -> search for `REPORT`. Nothing is stored in a database, so Render's
 log retention applies. The rules players agree to are in `public/terms.html`
-(`/terms.html`).
+(`/terms.html`). The page that explains how to request data deletion
+(`/delete-data.html`) is the URL to give Google Play's Data safety form.
 
 ## Store assets
 
