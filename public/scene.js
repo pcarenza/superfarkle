@@ -14,7 +14,7 @@ const PIPS = {
 };
 const UP = new THREE.Vector3(0, 1, 0);
 const WHITE = new THREE.Color(0xffffff);
-const DIM = new THREE.Color(0x6e6a60);
+const DIM = new THREE.Color(0x908c80);
 const KEPT = new THREE.Color(0xd9d6cc);
 
 // Small deterministic generator so every client lays out a roll identically.
@@ -137,6 +137,7 @@ export class DiceView {
 
     const geo = new RoundedBoxGeometry(1, 1, 1, 5, 0.13);
     this.diceHex = '#f3eee2';
+    this.glowColor = new THREE.Color(0.28, 0.18, 0.01); // warm glow on ivory dice
     const texOf = diceTextures(this.diceHex);
     this.dice = Array.from({ length: N }, (_, slot) => {
       const mats = GROUP_FACE.map((v) => new THREE.MeshStandardMaterial({ map: texOf[v], roughness: 0.32, metalness: 0, emissive: 0x000000 }));
@@ -168,6 +169,8 @@ export class DiceView {
   setDiceColor(hex) {
     if (hex === this.diceHex) return;
     this.diceHex = hex;
+    // Selected dice glow in their own colour (a gold glow would wash coloured dice out to white).
+    this.glowColor = lightness(hex) > 0.8 ? new THREE.Color(0.28, 0.18, 0.01) : new THREE.Color(hex).multiplyScalar(0.45);
     const tex = diceTextures(hex);
     for (const d of this.dice) d.mats.forEach((m, gi) => { m.map = tex[GROUP_FACE[gi]]; });
   }
@@ -337,7 +340,7 @@ export class DiceView {
       d.glow += (d.glowTo - d.glow) * ease;
       for (const mat of d.mats) {
         mat.color.copy(d.tint);
-        mat.emissive.setRGB(0.28 * d.glow, 0.18 * d.glow, 0.01 * d.glow);
+        mat.emissive.copy(this.glowColor).multiplyScalar(d.glow);
       }
     }
     this.renderer.render(this.scene, this.camera);
