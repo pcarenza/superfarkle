@@ -31,7 +31,7 @@
       <a class="app-link" href="https://github.com/pcarenza/superfarkle/releases/download/android-latest/superfarkle.apk">⬇ Get the Android app</a>
       <p class="muted">Download it, then allow installs from your browser when Android asks.</p>
     </div>
-    <a class="link-small" href="/privacy.html">Privacy policy</a>
+    <div class="legal"><a class="link-small" href="/privacy.html">Privacy policy</a><a class="link-small" href="/terms.html">Community rules</a></div>
   </section>
 
   <!-- Lobby -->
@@ -94,7 +94,7 @@
 
   <!-- Chat (lobby and game) -->
   <aside id="chatbox" class="card" hidden aria-label="Chat">
-    <header><span>Chat</span><button id="chat-close" class="small ghost" title="Hide chat">—</button></header>
+    <header><span>Chat</span><button id="chat-blocked" class="small ghost" hidden></button><button id="chat-close" class="small ghost" title="Hide chat">—</button></header>
     <div id="log" aria-live="polite"></div>
     <div id="reactions"></div>
     <form id="chat-form"><input id="chat" maxlength="200" placeholder="Say something…" autocomplete="off" enterkeyhint="send" /><button class="small primary">Send</button></form>
@@ -138,6 +138,13 @@
       <button id="gameover-close" class="ghost">Look at the table</button>
     </div>
   </section>
+
+  <!-- Block / report a player -->
+  <dialog id="mod" class="card">
+    <h2 id="mod-title"></h2>
+    <div id="mod-body"></div>
+    <form method="dialog"><button class="ghost">Close</button></form>
+  </dialog>
 
   <!-- Rules -->
   <dialog id="rules" class="card">

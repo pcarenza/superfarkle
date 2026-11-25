@@ -217,10 +217,16 @@ function renderLobby() {
         };
       }
       if (s.bot) li.insertAdjacentHTML('beforeend', '<span class="tag">computer</span>');
+      if (isBlocked(s.uid)) li.insertAdjacentHTML('beforeend', '<span class="tag">blocked</span>');
       else if (!s.connected) li.insertAdjacentHTML('beforeend', '<span class="tag">away</span>');
       if (i === you.seat) {
         li.insertAdjacentHTML('beforeend', '<span class="tag">you</span>');
         li.append(btn('Stand up', () => emit('stand', null, $('lobby-error'))));
+      } else if (s.uid) {
+        const more = btn('⋯', () => openPlayerMenu(s.uid, s.name));
+        more.title = 'Block or report';
+        li.append(more);
+        if (you.isHost) li.append(btn('Remove', () => emit('removeSeat', { seat: i }, $('lobby-error'))));
       } else if (you.isHost) {
         li.append(btn('Remove', () => emit('removeSeat', { seat: i }, $('lobby-error'))));
       }
@@ -685,6 +691,7 @@ function renderVoice() {
       const st = voice.stateOf(m.id);
       if (st && st !== 'connected') li.append(Object.assign(document.createElement('span'), { className: 'vstate', textContent: st === 'failed' ? "can't connect" : 'connecting…' }));
       li.append(btn(voice.isLocalMuted(m.id) ? 'Unmute' : 'Mute for me', () => voice.setLocalMute(m.id, !voice.isLocalMuted(m.id))));
+      if (m.uid) li.append(btn('⋯', () => openPlayerMenu(m.uid, m.name)));
     }
     ul.append(li);
   }
@@ -702,6 +709,97 @@ $('voice-join').onclick = () => { sfx.unlock(); voice.join(); };
 $('voice-leave').onclick = () => voice.leave();
 $('voice-mute').onclick = () => voice.setMuted(!voice.muted);
 socket.on('voice', ({ code }) => { if (!wantRoom) return; renderVoice(); });
+
+// ------------------------------------------------------- block and report --
+// Blocks are remembered on this device by the player's anonymous ID (uid -> name).
+let blocked = {};
+try { blocked = JSON.parse(store.get('blocked') || '{}') || {}; } catch {}
+const saveBlocked = () => store.set('blocked', JSON.stringify(blocked));
+const isBlocked = (uid) => !!uid && Object.hasOwn(blocked, uid);
+const REASONS = [
+  ['abusive_chat', 'Abusive or offensive chat'],
+  ['voice_abuse', 'Harassment or abuse in voice chat'],
+  ['bad_name', 'Offensive or inappropriate name'],
+  ['other', 'Something else'],
+];
+voice.autoMute = (id) => { const mem = voice.members.find((x) => x.id === id); return !!mem && isBlocked(mem.uid); };
+
+function applyBlocks() {
+  // Hide chat lines already on screen, mute voice, and update the lobby and buttons.
+  for (const uid of Object.keys(blocked)) for (const el of document.querySelectorAll(`#log [data-uid="${uid}"]`)) el.remove();
+  for (const mem of voice.members) {
+    if (mem.id !== voice.myId && isBlocked(mem.uid) && !voice.isLocalMuted(mem.id)) voice.setLocalMute(mem.id, true);
+  }
+  const n = Object.keys(blocked).length;
+  $('chat-blocked').hidden = !n;
+  $('chat-blocked').textContent = `Blocked (${n})`;
+  if (room && !room.game && !$('lobby').hidden) renderLobby();
+}
+
+function blockPlayer(uid, name) {
+  blocked[uid] = name;
+  saveBlocked();
+  applyBlocks();
+  renderVoice();
+  toast(`${name} blocked`, '', 1400);
+}
+function unblockPlayer(uid) {
+  const name = blocked[uid];
+  delete blocked[uid];
+  saveBlocked();
+  for (const mem of voice.members) if (mem.uid === uid && voice.isLocalMuted(mem.id)) voice.setLocalMute(mem.id, false);
+  applyBlocks();
+  renderVoice();
+  toast(`${name ?? 'Player'} unblocked`, '', 1400);
+}
+
+function openPlayerMenu(uid, name) {
+  if (!uid || uid === room?.you.uid) return;
+  $('mod-title').textContent = name;
+  const body = $('mod-body');
+  body.replaceChildren();
+  const bb = btn(isBlocked(uid) ? 'Unblock' : 'Block', () => { isBlocked(uid) ? unblockPlayer(uid) : blockPlayer(uid, name); $('mod').close(); });
+  bb.className = '';
+  const hint = document.createElement('p');
+  hint.className = 'muted';
+  hint.textContent = 'Blocking hides their chat and mutes their voice for you. It is remembered on this device.';
+  const sec = document.createElement('div');
+  sec.className = 'sec';
+  sec.textContent = 'Report this player';
+  const sel = document.createElement('select');
+  for (const [v, label] of REASONS) sel.add(new Option(label, v));
+  const note = document.createElement('input');
+  note.maxLength = 200;
+  note.placeholder = 'Add details (optional)';
+  const err = document.createElement('p');
+  err.className = 'error';
+  const send = btn('Send report', async () => {
+    send.disabled = true;
+    const res = await emit('report', { uid, reason: sel.value, note: note.value }, err);
+    send.disabled = false;
+    if (res?.ok) { $('mod').close(); toast('Report sent. Thank you.', 'good', 1800); }
+  });
+  send.className = 'primary';
+  body.append(bb, hint, sec, sel, note, err, send);
+  $('mod').showModal();
+}
+
+function openBlockedList() {
+  $('mod-title').textContent = 'Blocked players';
+  const body = $('mod-body');
+  body.replaceChildren();
+  const ids = Object.keys(blocked);
+  if (!ids.length) body.append(Object.assign(document.createElement('p'), { className: 'muted', textContent: "You haven't blocked anyone." }));
+  for (const uid of ids) {
+    const row = document.createElement('div');
+    row.className = 'blocked-row';
+    row.append(Object.assign(document.createElement('span'), { textContent: blocked[uid] }), btn('Unblock', () => { unblockPlayer(uid); openBlockedList(); }));
+    body.append(row);
+  }
+  $('mod').showModal();
+}
+$('chat-blocked').onclick = openBlockedList;
+applyBlocks();
 
 // ------------------------------------------------------------------ chat --
 // One feed holds chat messages, join/leave notices and game events.
@@ -727,13 +825,16 @@ function addChatMessage(m, live) {
     addLine(div);
     return;
   }
-  const mine = room && m.seat !== -1 ? m.seat === room.you.seat && m.name === room.you.name : m.name === store.get('name');
+  if (isBlocked(m.uid)) return; // a player you blocked
+  const mine = m.uid && room ? m.uid === room.you.uid : room && m.seat !== -1 ? m.seat === room.you.seat && m.name === room.you.name : m.name === store.get('name');
   div.className = 'msg' + (mine ? ' mine' : '');
+  if (m.uid) div.dataset.uid = m.uid;
   const dot = document.createElement('span');
   dot.className = 'mini';
   if (m.seat >= 0) dot.style.setProperty('--c', hexOf(m.seat));
   const name = document.createElement('b');
   name.textContent = `${m.name}: `;
+  if (m.uid && !mine) { name.className = 'who-tap'; name.title = 'Block or report'; name.onclick = () => openPlayerMenu(m.uid, m.name); }
   div.append(dot, name, document.createTextNode(m.text));
   addLine(div);
   if (live && !mine) notifyChat(m);

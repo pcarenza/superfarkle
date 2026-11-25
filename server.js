@@ -1,7 +1,7 @@
 import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
-import { randomInt, randomBytes } from 'node:crypto';
+import { randomInt, randomBytes, createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { MAX_SEATS, COLORS, TARGETS, DEFAULT_TARGET, ENTRY_SCORE, SCORING, DEFAULT_SCORING, MODES, MODE_IDS, DEFAULT_MODE } from './shared/config.js';
@@ -89,6 +89,11 @@ function newCode() {
   return code;
 }
 
+// A stable anonymous ID for a player, derived one-way from their private token (the
+// token itself is never shared). Other players see it so they can block or report someone.
+const uidOf = (token) => createHash('sha256').update(`farkle-uid:${token}`).digest('hex').slice(0, 12);
+const REPORT_REASONS = ['abusive_chat', 'voice_abuse', 'bad_name', 'other'];
+
 const cleanName = (n) => String(n ?? '').replace(/\s+/g, ' ').trim().slice(0, 20) || 'Player';
 
 class Room {
@@ -118,6 +123,7 @@ class Room {
         name: s.name,
         bot: !!s.bot,
         connected: s.bot || !!this.players.get(s.token)?.connected,
+        uid: s.bot ? null : uidOf(s.token),
         color: COLORS[s.color],
       }),
       spectators: [...this.players.values()].filter((p) => p.connected && this.seatOf(p.token) === -1).map((p) => p.name),
@@ -131,6 +137,7 @@ class Room {
     return [...this.voice].map(([id, v]) => ({
       id,
       name: this.players.get(v.token)?.name ?? '?',
+      uid: uidOf(v.token),
       seat: this.seatOf(v.token),
       muted: v.muted,
     }));
@@ -151,7 +158,7 @@ class Room {
     const state = this.publicState();
     for (const p of this.players.values()) {
       if (!p.connected) continue;
-      io.to(p.socketId).emit('room', { ...state, you: { seat: this.seatOf(p.token), isHost: p.token === this.host, name: p.name } });
+      io.to(p.socketId).emit('room', { ...state, you: { seat: this.seatOf(p.token), isHost: p.token === this.host, name: p.name, uid: uidOf(p.token) } });
     }
   }
 
@@ -220,8 +227,8 @@ class Room {
 
   // Chat goes out immediately on its own event, separate from game state, so
   // it is never held up behind dice animations.
-  addChat(name, text, system = false, seat = -1) {
-    const msg = { id: ++this.chatId, name, seat, text: String(text).slice(0, 200), system, t: Date.now() };
+  addChat(name, text, system = false, seat = -1, uid = null) {
+    const msg = { id: ++this.chatId, name, seat, uid, text: String(text).slice(0, 200), system, t: Date.now() };
     this.chat.push(msg);
     if (this.chat.length > 100) this.chat.shift();
     io.to(this.code).emit('chat', msg);
@@ -434,7 +441,7 @@ io.on('connection', (socket) => {
     while (chatTimes.length && now - chatTimes[0] > 5000) chatTimes.shift();
     if (chatTimes.length >= 5) return fail(ack, 'Slow down a little!');
     chatTimes.push(now);
-    room.addChat(room.players.get(token)?.name ?? '?', clean, false, room.seatOf(token));
+    room.addChat(room.players.get(token)?.name ?? '?', clean, false, room.seatOf(token), uidOf(token));
     ok(ack);
   });
 
@@ -480,6 +487,34 @@ io.on('connection', (socket) => {
     if (signalTimes.length >= 200) return;
     signalTimes.push(now);
     io.to(target.socketId).emit('voiceSignal', { from: myVoiceId, data });
+  });
+
+  // ------------------------------------------------- report a player --
+  // Reports are written to the server log (with the last few chat messages for
+  // context) for the operator to review; nothing is stored in a database.
+  const reportTimes = [];
+  socket.on('report', ({ uid, reason, note } = {}, ack) => {
+    if (!room) return fail(ack, 'Join a room first.');
+    const now = Date.now();
+    while (reportTimes.length && now - reportTimes[0] > 60000) reportTimes.shift();
+    if (reportTimes.length >= 5) return fail(ack, 'Too many reports. Please wait a minute.');
+    uid = String(uid ?? '');
+    if (!REPORT_REASONS.includes(reason)) return fail(ack, 'Pick a reason.');
+    if (uid === uidOf(token)) return fail(ack, "You can't report yourself.");
+    const player = [...room.players.values()].find((p) => uidOf(p.token) === uid);
+    const fromChat = [...room.chat].reverse().find((m) => m.uid === uid);
+    if (!player && !fromChat) return fail(ack, 'That player is no longer here.');
+    reportTimes.push(now);
+    console.warn('[REPORT]', JSON.stringify({
+      at: new Date(now).toISOString(),
+      room: room.code,
+      reason,
+      note: String(note ?? '').replace(/\s+/g, ' ').trim().slice(0, 200),
+      reporter: { uid: uidOf(token), name: room.players.get(token)?.name },
+      reported: { uid, name: player?.name ?? fromChat?.name },
+      recentChat: room.chat.slice(-10).map((m) => ({ name: m.name, uid: m.uid, text: m.text, system: m.system })),
+    }));
+    ok(ack);
   });
 
   socket.on('leave', (_, ack) => { leave(); ok(ack); });

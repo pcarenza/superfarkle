@@ -145,6 +145,7 @@ export class VoiceChat {
     audio.style.display = 'none';
     document.body.append(audio);
     const peer = { pc, audio, analyser: null, speaking: false, localMuted: false, state: 'connecting', pending: [] };
+    if (this.autoMute?.(id)) { peer.localMuted = true; audio.muted = true; } // e.g. a blocked player
     this.peers.set(id, peer);
     for (const t of this.stream.getTracks()) pc.addTrack(t, this.stream);
     pc.onicecandidate = (e) => {

@@ -224,3 +224,14 @@ a.app-link:hover { background: rgba(255,255,255,.15); }
     max-height: calc(100dvh - 76px - env(safe-area-inset-top));
   }
 }
+
+.legal { display: flex; justify-content: center; gap: 16px; }
+#chatbox header { gap: 6px; }
+#chatbox header > span { flex: 1; }
+#mod { max-width: min(420px, calc(100vw - 32px)); }
+#mod-body { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+#mod-body .sec { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+#mod-body select, #mod-body input { width: 100%; }
+#mod-body .blocked-row { display: flex; align-items: center; gap: 8px; }
+#mod-body .blocked-row span { flex: 1; overflow-wrap: anywhere; }
+#log .who-tap { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }

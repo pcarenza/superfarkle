@@ -88,6 +88,16 @@ four of a kind + a pair = 1,500, two triplets = 2,500, three 2s–6s = 200–600
 
 Rule sets live in `shared/config.js` (`SCORING`); the engine is `shared/rules.js`.
 
+## Moderation: block and report
+
+Players can tap a name in the chat, the voice list or the lobby to **block** (hides their chat,
+mutes their voice, remembered on the device by an anonymous player ID) or **report** them.
+Reports are written to the server log as a single `[REPORT]` line (reason, optional note,
+the last 10 chat messages, and both players' names and anonymous IDs). Read them in Render:
+your service -> Logs -> search for `REPORT`. Nothing is stored in a database, so Render's
+log retention applies. The rules players agree to are in `public/terms.html`
+(`/terms.html`).
+
 ## Store assets
 
 `store/` holds the Google Play artwork: the 512px icon, feature graphic, adaptive-icon
